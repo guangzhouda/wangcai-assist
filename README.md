@@ -112,12 +112,12 @@ python .\main.py
 
 OpenVoice V2：
 
-依赖安装（建议先装好，再跑）：
+推荐（Windows 省事版）：OpenVoice 只负责“转音色”，底座 TTS 直接用本项目的 Piper（不需要安装 MeloTTS）。
+
+依赖安装：
 
 ```powershell
 pip install git+https://github.com/myshell-ai/OpenVoice.git
-pip install git+https://github.com/myshell-ai/MeloTTS.git
-python -m unidic download
 ```
 
 模型下载（把 huggingface 的 `myshell-ai/OpenVoiceV2` 下载到本地）：
@@ -132,9 +132,19 @@ hf download myshell-ai/OpenVoiceV2 --local-dir .\model\openvoice_v2\checkpoints_
 ```powershell
 $env:TTS_ENGINE="openvoice"
 $env:OPENVOICE_REF_WAV="E:\path\to\ref.wav"
+# 推荐：底座用 piper（默认就是 piper）
+$env:OPENVOICE_BASE_ENGINE="piper"
 # 可选：$env:OPENVOICE_LANGUAGE="ZH"
 # 可选：$env:OPENVOICE_SPEAKER_KEY="ZH" （英文可用 EN-US / EN-AU / EN-BR / EN-INDIA / EN-DEFAULT / EN-NEWEST）
 python .\main.py
+```
+
+进阶（可选）：如果你想用 OpenVoice 官方示例的 MeloTTS 作为底座（可能依赖较多且会有版本冲突风险）：
+
+```powershell
+pip install git+https://github.com/myshell-ai/MeloTTS.git
+python -m unidic download
+$env:OPENVOICE_BASE_ENGINE="melo"
 ```
 
 ## 注意事项

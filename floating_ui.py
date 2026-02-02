@@ -48,6 +48,7 @@ def _create_process(
     openvoice_language: str = "",
     openvoice_speaker_key: str = "",
     openvoice_device: str = "",
+    openvoice_base_engine: str = "",
 ) -> subprocess.Popen:
     env = os.environ.copy()
     if picovoice_key.strip():
@@ -71,6 +72,8 @@ def _create_process(
         env["OPENVOICE_SPEAKER_KEY"] = openvoice_speaker_key.strip()
     if openvoice_device.strip():
         env["OPENVOICE_DEVICE"] = openvoice_device.strip()
+    if openvoice_base_engine.strip():
+        env["OPENVOICE_BASE_ENGINE"] = openvoice_base_engine.strip()
 
     cmd = [python_exe, str(PROJECT_DIR / "main.py")]
 
@@ -214,6 +217,7 @@ def main() -> None:
     openvoice_lang_var = tk.StringVar(value=os.environ.get("OPENVOICE_LANGUAGE", "ZH"))
     openvoice_speaker_var = tk.StringVar(value=os.environ.get("OPENVOICE_SPEAKER_KEY", ""))
     openvoice_device_var = tk.StringVar(value=os.environ.get("OPENVOICE_DEVICE", "auto"))
+    openvoice_base_var = tk.StringVar(value=os.environ.get("OPENVOICE_BASE_ENGINE", "piper"))
 
     def _screen_w() -> int:
         return int(root.winfo_screenwidth())
@@ -334,6 +338,7 @@ def main() -> None:
             openvoice_language=openvoice_lang_var.get(),
             openvoice_speaker_key=openvoice_speaker_var.get(),
             openvoice_device=openvoice_device_var.get(),
+            openvoice_base_engine=openvoice_base_var.get(),
         )
         proc_ref["proc"] = proc
         _set_status("Running")
@@ -489,6 +494,17 @@ def main() -> None:
     ov_dev_label.grid(row=11, column=0, sticky="w", padx=(0, 8), pady=4)
     ov_dev_combo.grid(row=11, column=1, sticky="ew", pady=4)
 
+    ov_base_label = ttk.Label(controls, text="OV BASE", style="W.Muted.TLabel")
+    ov_base_combo = ttk.Combobox(
+        controls,
+        textvariable=openvoice_base_var,
+        values=["piper", "melo"],
+        state="readonly",
+        style="W.TCombobox",
+    )
+    ov_base_label.grid(row=12, column=0, sticky="w", padx=(0, 8), pady=4)
+    ov_base_combo.grid(row=12, column=1, sticky="ew", pady=4)
+
     openvoice_widgets = [
         ov_ckpt_label,
         ov_ckpt_entry,
@@ -500,6 +516,8 @@ def main() -> None:
         ov_spk_entry,
         ov_dev_label,
         ov_dev_combo,
+        ov_base_label,
+        ov_base_combo,
     ]
 
     def update_openvoice_visibility(*_args) -> None:
