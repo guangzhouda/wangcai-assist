@@ -1,0 +1,52 @@
+# Python / venv
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+.spec-workflow/
+
+# Local caches / outputs
+output/
+.cache/
+
+# Project models / large artifacts (NOT committed)
+model/
+models/
+*.onnx
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.ckpt
+*.tflite
+*.npy
+*.npz
+
+# Audio samples (may contain personal data)
+*.wav
+*.m4a
+*.mp3
+*.flac
+*.aac
+*.ogg
+myvoice*
+
+# Logs / temp
+*.log
+*.tmp
+
+# Secrets
+.env
+.env.*
+*.env
+
+# Third-party downloads (optional)
+third_party/*.zip
+third_party/CosyVoice/
+third_party/_tmp_matcha/
