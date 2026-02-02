@@ -516,6 +516,14 @@ def main() -> None:
             d.text((26, 18), "W", fill=(15, 23, 42))
             return img
 
+        def set_side(side: str) -> None:
+            nonlocal cfg
+            side = (side or "").strip().lower()
+            if side not in ("left", "right"):
+                return
+            cfg.side = side
+            _repack()
+
         def ui_call(fn):
             def _inner(icon, item):  # noqa: ANN001
                 root.after(0, fn)
@@ -525,6 +533,17 @@ def main() -> None:
         menu = pystray.Menu(
             pystray.MenuItem("展开/收起", ui_call(toggle_panel)),
             pystray.MenuItem("显示/隐藏", ui_call(_toggle_visible)),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(
+                "靠左",
+                ui_call(lambda: set_side("left")),
+                checked=lambda item: cfg.side == "left",  # noqa: ARG005
+            ),
+            pystray.MenuItem(
+                "靠右",
+                ui_call(lambda: set_side("right")),
+                checked=lambda item: cfg.side == "right",  # noqa: ARG005
+            ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("启动", ui_call(start_pipeline)),
             pystray.MenuItem("停止", ui_call(stop_pipeline)),
@@ -550,4 +569,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
