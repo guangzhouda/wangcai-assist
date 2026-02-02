@@ -14,6 +14,8 @@ from sherpa_asr import start_streaming_asr
 TTS_ENGINE = os.environ.get("TTS_ENGINE", "piper").strip().lower()
 if TTS_ENGINE == "cosyvoice":
     from tts_cosyvoice import create_tts, synthesize_to_wav_with_duration
+elif TTS_ENGINE == "openvoice":
+    from tts_openvoice import create_tts, synthesize_to_wav_with_duration
 else:
     from tts_piper import create_tts, synthesize_to_wav_with_duration
 
@@ -106,6 +108,8 @@ def run_voice_chat_session(
     trust_env = os.environ.get("DEEPSEEK_NO_PROXY", "").strip() not in ("1", "true", "yes")
 
     if TTS_ENGINE == "cosyvoice":
+        tts = create_tts()
+    elif TTS_ENGINE == "openvoice":
         tts = create_tts()
     else:
         tts = create_tts(provider="cpu")

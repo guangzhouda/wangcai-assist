@@ -21,6 +21,8 @@
 - `voice_chat.py`：ASR final -> LLM stream -> **增量 TTS**（支持并行“合成/播放”流水线，降低卡顿）
 - `main.py`：完整链路入口（KWS 唤醒 -> VAD/ASR -> LLM -> 增量 TTS，支持“休眠/退出”回到待机）
 - `tts_piper.py` / `tts_cosyvoice.py`：两套 TTS 封装（同一接口思路，便于替换）
+- `tts_openvoice.py`：OpenVoice V2 TTS（MeloTTS 生成底座 + OpenVoice 转音色）
+- `tts_compare.py`：一键对比不同 TTS 的生成耗时/RTF（输出到 `output/tts_compare/`）
 
 ## 后续计划（暂定）
 
@@ -56,7 +58,7 @@ DeepSeek：
 
 TTS 选择：
 
-- `TTS_ENGINE=piper`（默认）或 `TTS_ENGINE=cosyvoice`
+- `TTS_ENGINE=piper`（默认）或 `TTS_ENGINE=cosyvoice` 或 `TTS_ENGINE=openvoice`
 
 CosyVoice（固定音色，必填）：
 
@@ -71,6 +73,7 @@ CosyVoice（固定音色，必填）：
 - `model/sherpa-onnx-streaming-zipformer-small-bilingual-zh-en-2023-02-16/`（encoder/decoder/joiner/tokens 等）
 - `model/vits-piper-zh_CN-huayan-medium/`（onnx + tokens + espeak-ng-data）
 - `model/CosyVoice2-0.5B/`（CosyVoice2 模型目录）
+- `model/openvoice_v2/checkpoints_v2/`（OpenVoiceV2：converter + base_speakers）
 
 ### 3) 启动语音聊天
 
@@ -104,6 +107,33 @@ CosyVoice：
 $env:TTS_ENGINE="cosyvoice"
 $env:COSYVOICE_PROMPT_WAV="E:\path\to\ref.wav"
 $env:COSYVOICE_PROMPT_TEXT="（ref.wav里说的内容）"
+python .\main.py
+```
+
+OpenVoice V2：
+
+依赖安装（建议先装好，再跑）：
+
+```powershell
+pip install git+https://github.com/myshell-ai/OpenVoice.git
+pip install git+https://github.com/myshell-ai/MeloTTS.git
+python -m unidic download
+```
+
+模型下载（把 huggingface 的 `myshell-ai/OpenVoiceV2` 下载到本地）：
+
+```powershell
+pip install huggingface-hub
+hf download myshell-ai/OpenVoiceV2 --local-dir .\model\openvoice_v2\checkpoints_v2
+```
+
+启动：
+
+```powershell
+$env:TTS_ENGINE="openvoice"
+$env:OPENVOICE_REF_WAV="E:\path\to\ref.wav"
+# 可选：$env:OPENVOICE_LANGUAGE="ZH"
+# 可选：$env:OPENVOICE_SPEAKER_KEY="ZH" （英文可用 EN-US / EN-AU / EN-BR / EN-INDIA / EN-DEFAULT / EN-NEWEST）
 python .\main.py
 ```
 
