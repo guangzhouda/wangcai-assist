@@ -80,10 +80,16 @@ CosyVoice（固定音色，必填）：
 python .\main.py
 ```
 
-可选：悬浮窗 UI（可选麦克风/灵敏度/Provider 等，适合常驻）：
+可选：侧边悬浮 UI（点击展开/收起，支持托盘图标，可选麦克风/灵敏度/Provider 等，适合常驻）：
 
 ```powershell
 python .\floating_ui.py
+```
+
+托盘图标依赖（如未安装会自动提示）：
+
+```powershell
+pip install pystray
 ```
 
 始终开启（不走唤醒词，调试用）：
