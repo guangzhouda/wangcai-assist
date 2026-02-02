@@ -1,4 +1,5 @@
 import os
+import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +31,14 @@ def _import_openvoice_core():
     - Do NOT import openvoice.api / openvoice.se_extractor here.
       They pull a lot of extra dependencies (faster-whisper/av, etc).
     """
+    # Prefer the vendored OpenVoice python sources so users don't need to pip install
+    # `git+https://github.com/myshell-ai/OpenVoice.git` (which often drags in heavy deps).
+    vendored = Path(__file__).resolve().parent / "third_party" / "openvoice_min"
+    if vendored.exists():
+        vendored_str = str(vendored)
+        if vendored_str not in sys.path:
+            sys.path.insert(0, vendored_str)
+
     try:
         import torch  # type: ignore
     except Exception as exc:
@@ -47,7 +56,8 @@ def _import_openvoice_core():
     except Exception as exc:
         raise SystemExit(
             "缺少依赖 openvoice（仅需要其 python 代码，不需要安装一堆 demo 依赖）。\n"
-            "推荐安装方式：\n"
+            "如果你是从本仓库运行，优先使用 vendored 版本：third_party/openvoice_min\n"
+            "如果你想自己安装：\n"
             "  python -m pip install --no-deps git+https://github.com/myshell-ai/OpenVoice.git"
         ) from exc
 
@@ -379,4 +389,3 @@ def synthesize_to_wav_with_duration(
     sr, frames = _read_wav_info(wav_path)
     dur = 0.0 if sr <= 0 else (frames / float(sr))
     return wav_path, dur
-

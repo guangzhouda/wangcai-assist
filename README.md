@@ -118,8 +118,10 @@ OpenVoice V2：
 
 ```powershell
 $env:NO_PROXY="*"; $env:no_proxy="*"
-# 关键：用 --no-deps，避免 OpenVoice 安装脚本拉一堆依赖（会触发 av 源码编译 / numpy 降级等问题）
-pip install --no-deps git+https://github.com/myshell-ai/OpenVoice.git
+# 本仓库已 vendored 了 OpenVoice 的 python 源码：third_party/openvoice_min
+# 所以一般不需要额外安装 openvoice。
+# 如果你想自己安装（不推荐拉全量依赖）：
+#   pip install --no-deps git+https://github.com/myshell-ai/OpenVoice.git
 ```
 
 模型下载（把 huggingface 的 `myshell-ai/OpenVoiceV2` 下载到本地）：

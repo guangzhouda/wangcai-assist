@@ -50,3 +50,4 @@ myvoice*
 third_party/*.zip
 third_party/CosyVoice/
 third_party/_tmp_matcha/
+third_party/_tmp_openvoice_src/
