@@ -254,8 +254,6 @@ def run_voice_chat_session(
             print(f"\n用户: {user_text}")
             # Speak a short ack and end this session.
             try:
-                out_dir = Path(__file__).resolve().parent / "output"
-                out_dir.mkdir(parents=True, exist_ok=True)
                 fd, wav_path = tempfile.mkstemp(prefix="tts_", suffix=".wav", dir=str(out_dir))
                 os.close(fd)
                 wav_path, dur = synthesize_to_wav_with_duration(tts, exit_ack, wav_path, speed=1.0)
