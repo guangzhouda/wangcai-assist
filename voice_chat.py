@@ -178,7 +178,8 @@ def run_voice_chat_session(
         allow_soft_cut: bool = False,
     ) -> tuple[List[str], str]:
         end_punct = set("。！？!?\\n")
-        soft_punct = "，,;；:："
+        # "Soft" cut points (less ideal than sentence end, but better than cutting mid-word).
+        soft_punct = "，,;；:：、)]）】》"
         soft_punct_set = set(soft_punct)
 
         chunks: List[str] = []
