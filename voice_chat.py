@@ -149,6 +149,22 @@ def run_voice_chat_session(
         except Exception:
             pass
 
+    # Optional: pre-synthesize a very short "thinking" ack to reduce perceived latency
+    # for the first audio (especially when LLM first-token or TTS is slow).
+    out_dir = Path(__file__).resolve().parent / "output"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    think_ack_text = os.environ.get("VOICE_THINK_ACK_TEXT", "嗯").strip()
+    think_ack_delay = float(os.environ.get("VOICE_THINK_ACK_DELAY", "0.6"))
+    think_ack_wav: Optional[str] = None
+    if think_ack_text:
+        try:
+            ack_path = out_dir / f"think_ack_{TTS_ENGINE}.wav"
+            wav_path, _dur = synthesize_to_wav_with_duration(tts, think_ack_text, str(ack_path), speed=1.0)
+            think_ack_wav = wav_path
+        except Exception:
+            think_ack_wav = None
+
     messages: List[Dict[str, str]] = [
         {"role": "system", "content": "你是一个中文语音助手，回答要简洁、自然。"},
     ]
@@ -259,11 +275,14 @@ def run_voice_chat_session(
         # - LLM stream -> text chunks (fast)
         # - TTS synth (slow) in one worker thread (keeps model thread-safe)
         # - Playback/printing in another thread, so synthesis can overlap playback.
-        out_dir = Path(__file__).resolve().parent / "output"
-        out_dir.mkdir(parents=True, exist_ok=True)
+        # NOTE: out_dir is created once above and reused here.
 
         text_q: Queue[Optional[str]] = Queue()
         audio_q: Queue[Optional[Tuple[str, str, float]]] = Queue()
+
+        # Ensure we don't overlap different wav playbacks (pre-ack vs answer chunks).
+        play_lock = threading.Lock()
+        started_playback = threading.Event()
 
         def synth_worker() -> None:
             while True:
@@ -304,7 +323,10 @@ def run_voice_chat_session(
                     while buffered:
                         part0, wav0, dur0 = buffered.pop(0)
                         buffered_dur = max(0.0, buffered_dur - float(dur0))
-                        play_wav_with_typewriter(wav0, part0, dur0, prefix="", end="")
+                        if not started_playback.is_set():
+                            started_playback.set()
+                        with play_lock:
+                            play_wav_with_typewriter(wav0, part0, dur0, prefix="", end="")
                         try:
                             os.remove(wav0)
                         except Exception:
@@ -328,7 +350,10 @@ def run_voice_chat_session(
                 while buffered:
                     part0, wav0, dur0 = buffered.pop(0)
                     buffered_dur = max(0.0, buffered_dur - float(dur0))
-                    play_wav_with_typewriter(wav0, part0, dur0, prefix="", end="")
+                    if not started_playback.is_set():
+                        started_playback.set()
+                    with play_lock:
+                        play_wav_with_typewriter(wav0, part0, dur0, prefix="", end="")
                     try:
                         os.remove(wav0)
                     except Exception:
@@ -339,6 +364,29 @@ def run_voice_chat_session(
         play_t = threading.Thread(target=playback_worker, daemon=True)
         synth_t.start()
         play_t.start()
+
+        # Play a short "thinking" ack if we are still not speaking after a short delay.
+        # This hides LLM first-token latency and the first TTS chunk synth time.
+        if think_ack_wav and think_ack_delay > 0:
+            def _ack_worker() -> None:
+                try:
+                    time.sleep(think_ack_delay)
+                    if started_playback.is_set():
+                        return
+                    if not play_lock.acquire(blocking=False):
+                        return
+                    try:
+                        if started_playback.is_set():
+                            return
+                        import winsound
+
+                        winsound.PlaySound(think_ack_wav, winsound.SND_FILENAME)
+                    finally:
+                        play_lock.release()
+                except Exception:
+                    pass
+
+            threading.Thread(target=_ack_worker, daemon=True).start()
 
         # First sentence strategy:
         # - Cut more aggressively at the beginning to get the first audio out fast.
