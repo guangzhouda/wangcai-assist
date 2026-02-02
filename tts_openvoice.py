@@ -1,6 +1,5 @@
 import os
 import tempfile
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -151,21 +150,9 @@ class OpenVoiceV2TTS:
             tgt_se = tgt
         self.tgt_se = tgt_se.to(self._device)
 
-        # Best effort: detect output SR by generating a tiny waveform once.
-        # (OpenVoice generally outputs 24kHz, but we don't hardcode.)
+        # OpenVoice V2 commonly outputs 24kHz. We still read the actual sample rate
+        # from the written wav when computing duration.
         self.sample_rate = 24000
-        try:
-            fd, tmp_wav = tempfile.mkstemp(prefix="ov2_probe_", suffix=".wav")
-            os.close(fd)
-            self.synthesize_to_wav("你好", tmp_wav, speed=1.0)
-            sr, _ = _read_wav_info(tmp_wav)
-            self.sample_rate = sr
-            try:
-                os.remove(tmp_wav)
-            except Exception:
-                pass
-        except Exception:
-            pass
 
     def _convert_to_file(self, *, audio_src_path: str, output_path: str) -> None:
         # API differs slightly across OpenVoice versions. Try with optional args first.
@@ -303,10 +290,7 @@ def synthesize_to_wav_with_duration(
 ) -> tuple[str, float]:
     # Keep signature compatible with other TTS modules.
     _ = sid
-    start = time.perf_counter()
     wav_path = tts.synthesize_to_wav(text, wav_path, speed=speed)
     sr, frames = _read_wav_info(wav_path)
     dur = 0.0 if sr <= 0 else (frames / float(sr))
-    _ = start  # keep a convenient breakpoint, and allow future rtf logging if needed
     return wav_path, dur
-
