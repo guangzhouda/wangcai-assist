@@ -80,6 +80,12 @@ CosyVoice（固定音色，必填）：
 python .\main.py
 ```
 
+可选：悬浮窗 UI（可选麦克风/灵敏度/Provider 等，适合常驻）：
+
+```powershell
+python .\floating_ui.py
+```
+
 始终开启（不走唤醒词，调试用）：
 
 ```powershell
