@@ -1,4 +1,5 @@
 import sys
+import threading
 from pathlib import Path
 from collections import deque
 from typing import Callable, Optional
@@ -55,6 +56,8 @@ def start_streaming_asr(
     device_index: int = -1,
     on_final: Callable[[str], None] | None = None,
     pause_mic_during_on_final: bool = True,
+    stop_event: Optional[threading.Event] = None,
+    handle_keyboard_interrupt: bool = True,
 ) -> None:
     recognizer = create_recognizer(model_dir=model_dir, provider=provider)
     recorder = PvRecorder(device_index=device_index, frame_length=FRAME_LENGTH)
@@ -82,6 +85,8 @@ def start_streaming_asr(
     try:
         recorder.start()
         while True:
+            if stop_event is not None and stop_event.is_set():
+                break
             pcm = np.array(recorder.read(), dtype=np.int16)
             samples = _pcm16_to_float32(pcm)
 
@@ -134,7 +139,10 @@ def start_streaming_asr(
                         except Exception as exc:
                             print(f"[on_final error] {exc}")
                         finally:
-                            if pause_mic_during_on_final and not recorder.is_recording:
+                            if stop_event is not None and stop_event.is_set():
+                                # External controller asked us to stop; don't re-open mic.
+                                pass
+                            elif pause_mic_during_on_final and not recorder.is_recording:
                                 recorder.start()
                             vad.reset()
                             pre_roll.clear()
@@ -143,6 +151,8 @@ def start_streaming_asr(
                 last_text = None
                 pre_roll.clear()
     except KeyboardInterrupt:
+        if not handle_keyboard_interrupt:
+            raise
         # Ensure we start from a new line even if we are updating in-place.
         if last_display_len:
             sys.stdout.write("\r" + (" " * last_display_len) + "\r")

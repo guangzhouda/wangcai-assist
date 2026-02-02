@@ -63,7 +63,24 @@ def play_wav_with_typewriter(
         time.sleep(remaining)
 
 
-def main() -> None:
+def run_voice_chat_session(
+    *,
+    provider: Optional[str] = None,
+    device_index: int = -1,
+    stop_event: Optional[threading.Event] = None,
+    handle_keyboard_interrupt: bool = True,
+) -> None:
+    """ASR -> LLM(stream) -> TTS(incremental).
+
+    If stop_event is provided, the session will stop when it is set (e.g. when
+    user says an exit phrase). If stop_event is None, an internal one is used.
+    """
+    if provider is None:
+        provider = os.environ.get("ASR_PROVIDER", "cuda")
+
+    if stop_event is None:
+        stop_event = threading.Event()
+
     def quiet_logs() -> None:
         # Keep console output clean for voice chat. Set VOICE_DEBUG=1 to see logs.
         if os.environ.get("VOICE_DEBUG", "").strip().lower() not in ("1", "true", "yes"):
@@ -105,6 +122,23 @@ def main() -> None:
     messages: List[Dict[str, str]] = [
         {"role": "system", "content": "你是一个中文语音助手，回答要简洁、自然。"},
     ]
+
+    def _normalize_cmd(s: str) -> str:
+        s = s.strip().lower().replace(" ", "")
+        for ch in "，,。.!！？?;；:：\n\r\t":
+            s = s.replace(ch, "")
+        return s
+
+    def _parse_exit_phrases(spec: str) -> set[str]:
+        out: set[str] = set()
+        for p in (spec or "").split(","):
+            p = _normalize_cmd(p)
+            if p:
+                out.add(p)
+        return out
+
+    exit_phrases = _parse_exit_phrases(os.environ.get("VOICE_EXIT_PHRASES", "休眠,退出,结束,停止,再见,拜拜"))
+    exit_ack = os.environ.get("VOICE_EXIT_ACK", "好的，我回到待机模式。")
 
     def split_ready_tts_chunks(
         buf: str,
@@ -167,6 +201,24 @@ def main() -> None:
 
         user_text = user_text.strip()
         if not user_text:
+            return
+
+        if _normalize_cmd(user_text) in exit_phrases:
+            print(f"\n用户: {user_text}")
+            # Speak a short ack and end this session.
+            try:
+                out_dir = Path(__file__).resolve().parent / "output"
+                out_dir.mkdir(parents=True, exist_ok=True)
+                fd, wav_path = tempfile.mkstemp(prefix="tts_", suffix=".wav", dir=str(out_dir))
+                os.close(fd)
+                wav_path, dur = synthesize_to_wav_with_duration(tts, exit_ack, wav_path, speed=1.0)
+                play_wav_with_typewriter(wav_path, exit_ack, dur, prefix="助手: ", end="\n")
+                try:
+                    os.remove(wav_path)
+                except Exception:
+                    pass
+            finally:
+                stop_event.set()
             return
 
         print(f"\n用户: {user_text}")
@@ -370,7 +422,17 @@ def main() -> None:
         if len(messages) > 20:
             messages = messages[:1] + messages[-18:]
 
-    start_streaming_asr(provider="cuda", on_final=on_final)
+    start_streaming_asr(
+        provider=provider,
+        device_index=device_index,
+        on_final=on_final,
+        stop_event=stop_event,
+        handle_keyboard_interrupt=handle_keyboard_interrupt,
+    )
+
+
+def main() -> None:
+    run_voice_chat_session()
 
 
 if __name__ == "__main__":

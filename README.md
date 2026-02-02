@@ -19,6 +19,7 @@
 - `sherpa_asr.py`：流式 ASR + VAD 切句 + pre-roll，支持部分结果单行刷新与 final 回调
 - `llm_deepseek.py`：DeepSeek OpenAI 兼容客户端（`stream_chat()` / `chat()`）
 - `voice_chat.py`：ASR final -> LLM stream -> **增量 TTS**（支持并行“合成/播放”流水线，降低卡顿）
+- `main.py`：完整链路入口（KWS 唤醒 -> VAD/ASR -> LLM -> 增量 TTS，支持“休眠/退出”回到待机）
 - `tts_piper.py` / `tts_cosyvoice.py`：两套 TTS 封装（同一接口思路，便于替换）
 
 ## 后续计划（暂定）
@@ -34,6 +35,7 @@
 
 ## 目录与关键文件
 
+- `main.py`：完整链路入口（带唤醒词）
 - `wakeword.py`：唤醒词
 - `silero_vad.py`：VAD
 - `sherpa_asr.py`：实时 ASR（中英混合）
@@ -72,7 +74,13 @@ CosyVoice（固定音色，必填）：
 
 ### 3) 启动语音聊天
 
-Piper：
+推荐（带唤醒词，“旺财”唤醒；说“休眠/退出/再见”回到待机）：
+
+```powershell
+python .\main.py
+```
+
+始终开启（不走唤醒词，调试用）：
 
 ```powershell
 python .\voice_chat.py
@@ -84,7 +92,7 @@ CosyVoice：
 $env:TTS_ENGINE="cosyvoice"
 $env:COSYVOICE_PROMPT_WAV="E:\path\to\ref.wav"
 $env:COSYVOICE_PROMPT_TEXT="（ref.wav里说的内容）"
-python .\voice_chat.py
+python .\main.py
 ```
 
 ## 注意事项
@@ -92,4 +100,3 @@ python .\voice_chat.py
 - `.gitignore` 已忽略 `model/`、音频文件、`output/`、`.venv/`、`.cache/`、`.env*` 等，避免提交大文件/敏感信息。
 - 参考音频如果是 `m4a`，建议用 `ffmpeg` 转成 `wav`（24k/mono）再用作 `COSYVOICE_PROMPT_WAV`。
 - 这是原型工程，后续会继续模块化与整理依赖/文档。
-
