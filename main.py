@@ -28,7 +28,12 @@ def _get_float_env(name: str, default: float) -> float:
 def main() -> None:
     access_key = get_access_key_from_env()
     if not access_key:
-        raise SystemExit("请设置环境变量 PICOVOICE_ACCESS_KEY")
+        raise SystemExit(
+            "找不到 PICOVOICE_ACCESS_KEY。\n"
+            "可选方案：\n"
+            "1) 设置环境变量 PICOVOICE_ACCESS_KEY\n"
+            "2) 或把 key 写入 model/旺财_zh_windows_v4_0_0/LICENSE.txt（本仓库会自动读取）"
+        )
 
     # Mic device selection:
     # - KWS 和 ASR 默认用同一个麦克风索引（-1 为系统默认）

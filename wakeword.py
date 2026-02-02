@@ -79,7 +79,21 @@ def start_wakeword_listener(
 
 
 def get_access_key_from_env() -> str:
-    return os.environ.get("PICOVOICE_ACCESS_KEY", "")
+    key = os.environ.get("PICOVOICE_ACCESS_KEY", "").strip()
+    if key:
+        return key
+
+    # Fallback: load AccessKey from the local license file shipped with the
+    # wakeword model folder (kept under model/ which is gitignored).
+    base_dir = Path(__file__).resolve().parent
+    lic = base_dir / "model" / "旺财_zh_windows_v4_0_0" / "LICENSE.txt"
+    try:
+        if lic.exists():
+            return lic.read_text(encoding="utf-8").strip()
+    except Exception:
+        pass
+
+    return ""
 
 
 def wait_for_wakeword(
