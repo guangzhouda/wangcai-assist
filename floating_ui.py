@@ -45,10 +45,9 @@ def _create_process(
     tts_engine: str,
     openvoice_ckpt_dir: str = "",
     openvoice_ref_wav: str = "",
-    openvoice_language: str = "",
-    openvoice_speaker_key: str = "",
     openvoice_device: str = "",
     openvoice_base_engine: str = "",
+    openvoice_piper_provider: str = "",
 ) -> subprocess.Popen:
     env = os.environ.copy()
     if picovoice_key.strip():
@@ -66,14 +65,12 @@ def _create_process(
         env["OPENVOICE_CKPT_DIR"] = openvoice_ckpt_dir.strip()
     if openvoice_ref_wav.strip():
         env["OPENVOICE_REF_WAV"] = openvoice_ref_wav.strip()
-    if openvoice_language.strip():
-        env["OPENVOICE_LANGUAGE"] = openvoice_language.strip()
-    if openvoice_speaker_key.strip():
-        env["OPENVOICE_SPEAKER_KEY"] = openvoice_speaker_key.strip()
     if openvoice_device.strip():
         env["OPENVOICE_DEVICE"] = openvoice_device.strip()
     if openvoice_base_engine.strip():
         env["OPENVOICE_BASE_ENGINE"] = openvoice_base_engine.strip()
+    if openvoice_piper_provider.strip():
+        env["OPENVOICE_PIPER_PROVIDER"] = openvoice_piper_provider.strip()
 
     cmd = [python_exe, str(PROJECT_DIR / "main.py")]
 
@@ -214,10 +211,9 @@ def main() -> None:
         )
     )
     openvoice_ref_var = tk.StringVar(value=os.environ.get("OPENVOICE_REF_WAV", ""))
-    openvoice_lang_var = tk.StringVar(value=os.environ.get("OPENVOICE_LANGUAGE", "ZH"))
-    openvoice_speaker_var = tk.StringVar(value=os.environ.get("OPENVOICE_SPEAKER_KEY", ""))
     openvoice_device_var = tk.StringVar(value=os.environ.get("OPENVOICE_DEVICE", "auto"))
     openvoice_base_var = tk.StringVar(value=os.environ.get("OPENVOICE_BASE_ENGINE", "piper"))
+    openvoice_piper_provider_var = tk.StringVar(value=os.environ.get("OPENVOICE_PIPER_PROVIDER", "cpu"))
 
     def _screen_w() -> int:
         return int(root.winfo_screenwidth())
@@ -335,10 +331,9 @@ def main() -> None:
             tts_engine=(tts_engine_var.get() or "piper").strip(),
             openvoice_ckpt_dir=openvoice_ckpt_var.get(),
             openvoice_ref_wav=openvoice_ref_var.get(),
-            openvoice_language=openvoice_lang_var.get(),
-            openvoice_speaker_key=openvoice_speaker_var.get(),
             openvoice_device=openvoice_device_var.get(),
             openvoice_base_engine=openvoice_base_var.get(),
+            openvoice_piper_provider=openvoice_piper_provider_var.get(),
         )
         proc_ref["proc"] = proc
         _set_status("Running")
@@ -467,22 +462,6 @@ def main() -> None:
     ov_ref_label.grid(row=8, column=0, sticky="w", padx=(0, 8), pady=4)
     ov_ref_entry.grid(row=8, column=1, sticky="ew", pady=4)
 
-    ov_lang_label = ttk.Label(controls, text="OV 语言", style="W.Muted.TLabel")
-    ov_lang_combo = ttk.Combobox(
-        controls,
-        textvariable=openvoice_lang_var,
-        values=["ZH", "EN", "ES", "FR", "JP", "KR"],
-        state="readonly",
-        style="W.TCombobox",
-    )
-    ov_lang_label.grid(row=9, column=0, sticky="w", padx=(0, 8), pady=4)
-    ov_lang_combo.grid(row=9, column=1, sticky="ew", pady=4)
-
-    ov_spk_label = ttk.Label(controls, text="OV SPEAKER", style="W.Muted.TLabel")
-    ov_spk_entry = ttk.Entry(controls, textvariable=openvoice_speaker_var, style="W.TEntry")
-    ov_spk_label.grid(row=10, column=0, sticky="w", padx=(0, 8), pady=4)
-    ov_spk_entry.grid(row=10, column=1, sticky="ew", pady=4)
-
     ov_dev_label = ttk.Label(controls, text="OV DEVICE", style="W.Muted.TLabel")
     ov_dev_combo = ttk.Combobox(
         controls,
@@ -491,33 +470,42 @@ def main() -> None:
         state="readonly",
         style="W.TCombobox",
     )
-    ov_dev_label.grid(row=11, column=0, sticky="w", padx=(0, 8), pady=4)
-    ov_dev_combo.grid(row=11, column=1, sticky="ew", pady=4)
+    ov_dev_label.grid(row=9, column=0, sticky="w", padx=(0, 8), pady=4)
+    ov_dev_combo.grid(row=9, column=1, sticky="ew", pady=4)
 
     ov_base_label = ttk.Label(controls, text="OV BASE", style="W.Muted.TLabel")
     ov_base_combo = ttk.Combobox(
         controls,
         textvariable=openvoice_base_var,
-        values=["piper", "melo"],
+        values=["piper"],
         state="readonly",
         style="W.TCombobox",
     )
-    ov_base_label.grid(row=12, column=0, sticky="w", padx=(0, 8), pady=4)
-    ov_base_combo.grid(row=12, column=1, sticky="ew", pady=4)
+    ov_base_label.grid(row=10, column=0, sticky="w", padx=(0, 8), pady=4)
+    ov_base_combo.grid(row=10, column=1, sticky="ew", pady=4)
+
+    ov_piper_label = ttk.Label(controls, text="OV Piper", style="W.Muted.TLabel")
+    ov_piper_combo = ttk.Combobox(
+        controls,
+        textvariable=openvoice_piper_provider_var,
+        values=["cpu", "cuda"],
+        state="readonly",
+        style="W.TCombobox",
+    )
+    ov_piper_label.grid(row=11, column=0, sticky="w", padx=(0, 8), pady=4)
+    ov_piper_combo.grid(row=11, column=1, sticky="ew", pady=4)
 
     openvoice_widgets = [
         ov_ckpt_label,
         ov_ckpt_entry,
         ov_ref_label,
         ov_ref_entry,
-        ov_lang_label,
-        ov_lang_combo,
-        ov_spk_label,
-        ov_spk_entry,
         ov_dev_label,
         ov_dev_combo,
         ov_base_label,
         ov_base_combo,
+        ov_piper_label,
+        ov_piper_combo,
     ]
 
     def update_openvoice_visibility(*_args) -> None:

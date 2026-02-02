@@ -21,7 +21,7 @@
 - `voice_chat.py`：ASR final -> LLM stream -> **增量 TTS**（支持并行“合成/播放”流水线，降低卡顿）
 - `main.py`：完整链路入口（KWS 唤醒 -> VAD/ASR -> LLM -> 增量 TTS，支持“休眠/退出”回到待机）
 - `tts_piper.py` / `tts_cosyvoice.py`：两套 TTS 封装（同一接口思路，便于替换）
-- `tts_openvoice.py`：OpenVoice V2 TTS（MeloTTS 生成底座 + OpenVoice 转音色）
+- `tts_openvoice.py`：OpenVoice V2 TTS（Piper 生成底座语音 + OpenVoice 转音色）
 - `tts_compare.py`：一键对比不同 TTS 的生成耗时/RTF（输出到 `output/tts_compare/`）
 
 ## 后续计划（暂定）
@@ -73,7 +73,7 @@ CosyVoice（固定音色，必填）：
 - `model/sherpa-onnx-streaming-zipformer-small-bilingual-zh-en-2023-02-16/`（encoder/decoder/joiner/tokens 等）
 - `model/vits-piper-zh_CN-huayan-medium/`（onnx + tokens + espeak-ng-data）
 - `model/CosyVoice2-0.5B/`（CosyVoice2 模型目录）
-- `model/openvoice_v2/checkpoints_v2/`（OpenVoiceV2：converter + base_speakers）
+- `model/openvoice_v2/checkpoints_v2/`（OpenVoiceV2 checkpoints：converter 等）
 
 ### 3) 启动语音聊天
 
@@ -112,12 +112,14 @@ python .\main.py
 
 OpenVoice V2：
 
-推荐（Windows 省事版）：OpenVoice 只负责“转音色”，底座 TTS 直接用本项目的 Piper（不需要安装 MeloTTS）。
+推荐（Windows 省事版）：OpenVoice 只负责“转音色”，底座 TTS 直接用本项目的 Piper（不需要安装 MeloTTS，也不需要 faster-whisper/av）。
 
 依赖安装：
 
 ```powershell
-pip install git+https://github.com/myshell-ai/OpenVoice.git
+$env:NO_PROXY="*"; $env:no_proxy="*"
+# 关键：用 --no-deps，避免 OpenVoice 安装脚本拉一堆依赖（会触发 av 源码编译 / numpy 降级等问题）
+pip install --no-deps git+https://github.com/myshell-ai/OpenVoice.git
 ```
 
 模型下载（把 huggingface 的 `myshell-ai/OpenVoiceV2` 下载到本地）：
@@ -134,17 +136,9 @@ $env:TTS_ENGINE="openvoice"
 $env:OPENVOICE_REF_WAV="E:\path\to\ref.wav"
 # 推荐：底座用 piper（默认就是 piper）
 $env:OPENVOICE_BASE_ENGINE="piper"
-# 可选：$env:OPENVOICE_LANGUAGE="ZH"
-# 可选：$env:OPENVOICE_SPEAKER_KEY="ZH" （英文可用 EN-US / EN-AU / EN-BR / EN-INDIA / EN-DEFAULT / EN-NEWEST）
+# 可选：$env:OPENVOICE_DEVICE="auto"  # 或 cuda / cpu
+# 可选：$env:OPENVOICE_PIPER_PROVIDER="cpu"  # 或 cuda（需要 sherpa-onnx 支持 GPU provider）
 python .\main.py
-```
-
-进阶（可选）：如果你想用 OpenVoice 官方示例的 MeloTTS 作为底座（可能依赖较多且会有版本冲突风险）：
-
-```powershell
-pip install git+https://github.com/myshell-ai/MeloTTS.git
-python -m unidic download
-$env:OPENVOICE_BASE_ENGINE="melo"
 ```
 
 ## 注意事项

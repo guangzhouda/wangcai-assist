@@ -2,12 +2,13 @@ import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 import soundfile as sf
 
 
+# OpenVoice V2 checkpoints (HuggingFace: myshell-ai/OpenVoiceV2)
 DEFAULT_CKPT_DIR = Path(__file__).resolve().parent / "model" / "openvoice_v2" / "checkpoints_v2"
 
 
@@ -17,21 +18,174 @@ class GeneratedAudio:
     sample_rate: int
 
 
-def _read_wav_info(path: str) -> tuple[int, int]:
+def _read_wav_info(path: str) -> Tuple[int, int]:
     info = sf.info(path)
     return int(info.samplerate), int(info.frames)
 
 
-def _normalize_speaker_key(key: str) -> str:
-    # "EN-US" -> "en-us", "EN_INDIA" -> "en-india", "ZH" -> "zh"
-    return (key or "").strip().lower().replace("_", "-")
+def _import_openvoice_core():
+    """Import only the minimal OpenVoice python modules we need.
+
+    IMPORTANT:
+    - Do NOT import openvoice.api / openvoice.se_extractor here.
+      They pull a lot of extra dependencies (faster-whisper/av, etc).
+    """
+    try:
+        import torch  # type: ignore
+    except Exception as exc:
+        raise SystemExit("缺少依赖 torch。请先安装 torch 后再使用 OpenVoice。") from exc
+
+    try:
+        import librosa  # type: ignore
+    except Exception as exc:
+        raise SystemExit("缺少依赖 librosa。请先安装：pip install librosa") from exc
+
+    try:
+        from openvoice import commons, utils  # type: ignore
+        from openvoice.mel_processing import spectrogram_torch  # type: ignore
+        from openvoice.models import SynthesizerTrn  # type: ignore
+    except Exception as exc:
+        raise SystemExit(
+            "缺少依赖 openvoice（仅需要其 python 代码，不需要安装一堆 demo 依赖）。\n"
+            "推荐安装方式：\n"
+            "  python -m pip install --no-deps git+https://github.com/myshell-ai/OpenVoice.git"
+        ) from exc
+
+    return torch, librosa, utils, commons, spectrogram_torch, SynthesizerTrn
 
 
-def _pick_default_speaker_key(language: str) -> str:
-    lang = (language or "").strip().upper()
-    if lang == "EN":
-        return "EN-US"
-    return lang or "ZH"
+class _OpenVoiceBase:
+    def __init__(self, config_path: str, *, device: str):
+        torch, _, utils, _, _, SynthesizerTrn = _import_openvoice_core()
+
+        if "cuda" in device:
+            assert torch.cuda.is_available(), "CUDA 不可用，但 device 选择了 cuda"
+
+        hps = utils.get_hparams_from_file(config_path)
+        model = SynthesizerTrn(
+            len(getattr(hps, "symbols", [])),
+            hps.data.filter_length // 2 + 1,
+            n_speakers=hps.data.n_speakers,
+            **hps.model,
+        ).to(device)
+        model.eval()
+
+        self.model = model
+        self.hps = hps
+        self.device = device
+
+    def load_ckpt(self, ckpt_path: str) -> None:
+        torch, _, _, _, _, _ = _import_openvoice_core()
+        checkpoint_dict = torch.load(ckpt_path, map_location=torch.device(self.device))
+        self.model.load_state_dict(checkpoint_dict["model"], strict=False)
+
+
+class _ToneColorConverter(_OpenVoiceBase):
+    def __init__(self, config_path: str, *, device: str, enable_watermark: bool = False):
+        super().__init__(config_path, device=device)
+
+        self.watermark_model = None
+        if enable_watermark:
+            try:
+                import wavmark  # type: ignore
+
+                self.watermark_model = wavmark.load_model().to(self.device)
+            except Exception:
+                # watermark is optional; if it can't be loaded, just disable.
+                self.watermark_model = None
+
+        self.version = getattr(self.hps, "_version_", "v2")
+
+    def extract_se(self, ref_wav_list, se_save_path: Optional[str] = None):
+        torch, librosa, _, _, spectrogram_torch, _ = _import_openvoice_core()
+
+        if isinstance(ref_wav_list, str):
+            ref_wav_list = [ref_wav_list]
+
+        device = self.device
+        hps = self.hps
+        gs = []
+
+        for fname in ref_wav_list:
+            audio_ref, _sr = librosa.load(fname, sr=hps.data.sampling_rate, mono=True)
+            y = torch.FloatTensor(audio_ref).to(device).unsqueeze(0)
+            y = spectrogram_torch(
+                y,
+                hps.data.filter_length,
+                hps.data.sampling_rate,
+                hps.data.hop_length,
+                hps.data.win_length,
+                center=False,
+            ).to(device)
+            with torch.no_grad():
+                g = self.model.ref_enc(y.transpose(1, 2)).unsqueeze(-1)
+                gs.append(g.detach())
+
+        gs = torch.stack(gs).mean(0)
+        if se_save_path is not None:
+            os.makedirs(os.path.dirname(se_save_path), exist_ok=True)
+            torch.save(gs.cpu(), se_save_path)
+        return gs
+
+    def convert(
+        self,
+        *,
+        audio_src_path: str,
+        src_se,
+        tgt_se,
+        output_path: str,
+        tau: float = 0.3,
+        message: str = "default",
+    ) -> None:
+        torch, librosa, utils, _, spectrogram_torch, _ = _import_openvoice_core()
+
+        hps = self.hps
+        audio, _sr = librosa.load(audio_src_path, sr=hps.data.sampling_rate, mono=True)
+        audio = torch.tensor(audio).float()
+
+        with torch.no_grad():
+            y = torch.FloatTensor(audio).to(self.device).unsqueeze(0)
+            spec = spectrogram_torch(
+                y,
+                hps.data.filter_length,
+                hps.data.sampling_rate,
+                hps.data.hop_length,
+                hps.data.win_length,
+                center=False,
+            ).to(self.device)
+            spec_lengths = torch.LongTensor([spec.size(-1)]).to(self.device)
+            out = self.model.voice_conversion(
+                spec,
+                spec_lengths,
+                sid_src=src_se,
+                sid_tgt=tgt_se,
+                tau=float(tau),
+            )[0][0, 0].data.cpu().float().numpy()
+
+            out = self._add_watermark(out, message, utils)
+            sf.write(output_path, out, hps.data.sampling_rate)
+
+    def _add_watermark(self, audio: np.ndarray, message: str, utils_mod) -> np.ndarray:
+        if self.watermark_model is None:
+            return audio
+        torch, _, _, _, _, _ = _import_openvoice_core()
+
+        bits = utils_mod.string_to_bits(message).reshape(-1)
+        n_repeat = len(bits) // 32
+        K = 16000
+        coeff = 2
+        for n in range(n_repeat):
+            trunck = audio[(coeff * n) * K : (coeff * n + 1) * K]
+            if len(trunck) != K:
+                break
+            message_npy = bits[n * 32 : (n + 1) * 32]
+            with torch.no_grad():
+                signal = torch.FloatTensor(trunck).to(self.device)[None]
+                message_tensor = torch.FloatTensor(message_npy).to(self.device)[None]
+                signal_wmd_tensor = self.watermark_model.encode(signal, message_tensor)
+                signal_wmd_npy = signal_wmd_tensor.detach().cpu().squeeze()
+            audio[(coeff * n) * K : (coeff * n + 1) * K] = signal_wmd_npy
+        return audio
 
 
 class OpenVoiceV2TTS:
@@ -40,43 +194,23 @@ class OpenVoiceV2TTS:
         *,
         ckpt_dir: str,
         ref_wav: str,
-        base_engine: str = "piper",
-        language: str = "ZH",
-        speaker_key: str = "",
         device: str = "auto",
-        ref_vad: bool = True,
+        speed: float = 1.0,
         tau: Optional[float] = None,
         watermark_message: str = "",
-        speed: float = 1.0,
+        base_engine: str = "piper",
+        piper_provider: str = "cpu",
     ) -> None:
-        # Lazy imports so "openvoice" stays optional.
-        try:
-            import torch  # type: ignore
-        except Exception as exc:
-            raise SystemExit("缺少依赖 torch。请先安装 torch 后再使用 OpenVoice。") from exc
-
-        try:
-            from openvoice import se_extractor  # type: ignore
-            from openvoice.api import ToneColorConverter  # type: ignore
-        except Exception as exc:
-            raise SystemExit(
-                "缺少依赖 openvoice。请先安装：pip install git+https://github.com/myshell-ai/OpenVoice.git"
-            ) from exc
-
-        self._torch = torch
-        self._se_extractor = se_extractor
-        self._ToneColorConverter = ToneColorConverter
+        torch, _, _, _, _, _ = _import_openvoice_core()
 
         self.ckpt_dir = str(Path(ckpt_dir).expanduser())
         self.ref_wav = str(Path(ref_wav).expanduser())
-        self.base_engine = (base_engine or "piper").strip().lower()
-        self.language = (language or "ZH").strip().upper()
-        self.speaker_key = (speaker_key or "").strip().upper()
         self.device = (device or "auto").strip().lower()
-        self.ref_vad = bool(ref_vad)
+        self.speed = float(speed)
         self.tau = tau
         self.watermark_message = (watermark_message or "").strip()
-        self.speed = float(speed)
+        self.base_engine = (base_engine or "piper").strip().lower()
+        self.piper_provider = (piper_provider or "cpu").strip().lower()
 
         ckpt = Path(self.ckpt_dir)
         if not ckpt.exists():
@@ -100,157 +234,67 @@ class OpenVoiceV2TTS:
         else:
             self._device = self.device
 
-        # Init converter
-        self.converter = ToneColorConverter(str(converter_cfg), device=self._device)
+        enable_watermark = bool(self.watermark_message)
+        self.converter = _ToneColorConverter(
+            str(converter_cfg),
+            device=self._device,
+            enable_watermark=enable_watermark,
+        )
         self.converter.load_ckpt(str(converter_ckpt))
 
-        # Base speech generation:
-        # - "piper": use our existing local Piper model to generate the base audio
-        # - "melo": use MeloTTS base speaker voices (needs extra deps and may pin old transformers)
-        if self.base_engine not in ("piper", "melo"):
-            self.base_engine = "piper"
+        # Embeddings:
+        out_dir = Path(__file__).resolve().parent / "output" / "openvoice_processed"
+        out_dir.mkdir(parents=True, exist_ok=True)
 
-        self._processed_dir = Path(__file__).resolve().parent / "output" / "openvoice_processed"
-        self._processed_dir.mkdir(parents=True, exist_ok=True)
+        self.tgt_se = self.converter.extract_se(str(ref_path), se_save_path=str(out_dir / "tgt_se.pth")).to(self._device)
 
-        self.src_se = None
-        self.melo = None
-        self._speaker_id = None
-        self.piper_tts = None
+        # Base engine (default: Piper) + precompute src_se once
+        if self.base_engine != "piper":
+            raise SystemExit("当前仅支持 OPENVOICE_BASE_ENGINE=piper（更稳，不会引入额外依赖）。")
 
-        if self.base_engine == "melo":
+        from tts_piper import create_tts as piper_create_tts, synthesize_to_wav as piper_synthesize_to_wav
+
+        self.piper_tts = piper_create_tts(provider=self.piper_provider)
+
+        fd, probe_wav = tempfile.mkstemp(prefix="ov_src_", suffix=".wav", dir=str(out_dir))
+        os.close(fd)
+        try:
+            piper_synthesize_to_wav(self.piper_tts, "你好", probe_wav, speed=1.0)
+            self.src_se = self.converter.extract_se(probe_wav, se_save_path=str(out_dir / "src_se.pth")).to(self._device)
+        finally:
             try:
-                from melo.api import TTS as MeloTTS  # type: ignore
-            except Exception as exc:
-                raise SystemExit(
-                    "OpenVoice base_engine=melo 需要 MeloTTS。\n"
-                    "建议在 Windows 上先用 base_engine=piper（不需要 MeloTTS）。\n"
-                    "如仍要用 MeloTTS：pip install git+https://github.com/myshell-ai/MeloTTS.git"
-                ) from exc
+                os.remove(probe_wav)
+            except Exception:
+                pass
 
-            self.melo = MeloTTS(language=self.language, device=self._device)
-            spk2id = dict(self.melo.hps.data.spk2id)
-
-            if not self.speaker_key:
-                self.speaker_key = _pick_default_speaker_key(self.language)
-            if self.speaker_key not in spk2id:
-                raise ValueError(
-                    f"Invalid OPENVOICE_SPEAKER_KEY '{self.speaker_key}'. "
-                    f"Available: {sorted(spk2id.keys())}"
-                )
-
-            self._speaker_id = int(spk2id[self.speaker_key])
-
-            # Load source speaker embedding (precomputed in OpenVoiceV2 checkpoints).
-            se_key = _normalize_speaker_key(self.speaker_key)
-            se_path = ckpt / "base_speakers" / "ses" / f"{se_key}.pth"
-            if not se_path.exists():
-                # Fallback for languages that only have one embedding in ckpt.
-                se_path = ckpt / "base_speakers" / "ses" / f"{_normalize_speaker_key(self.language)}.pth"
-            if not se_path.exists():
-                raise FileNotFoundError(f"Missing base speaker embedding: {se_path}")
-            self.src_se = torch.load(str(se_path), map_location=self._device).to(self._device)
-        else:
-            # Piper base: generate audio locally, then extract src embedding from that audio.
-            from tts_piper import create_tts as piper_create_tts  # local module
-
-            piper_provider = os.environ.get("OPENVOICE_PIPER_PROVIDER", "cpu").strip() or "cpu"
-            # Piper model is always local; we keep it on CPU by default for stability.
-            self.piper_tts = piper_create_tts(provider=piper_provider)
-
-        # Extract target speaker embedding from reference audio.
-        # This is the voice you want to clone.
-        tgt = se_extractor.get_se(
-            str(ref_path),
-            self.converter,
-            target_dir=str(self._processed_dir),
-            vad=self.ref_vad,
-        )
-        if isinstance(tgt, (tuple, list)) and tgt:
-            tgt_se = tgt[0]
-        else:
-            tgt_se = tgt
-        self.tgt_se = tgt_se.to(self._device)
-
-        # OpenVoice V2 commonly outputs 24kHz. We still read the actual sample rate
-        # from the written wav when computing duration.
-        self.sample_rate = 24000
-
-    def _extract_se(self, wav_path: str, *, vad: bool = False):
-        se = self._se_extractor.get_se(
-            wav_path,
-            self.converter,
-            target_dir=str(self._processed_dir),
-            vad=bool(vad),
-        )
-        if isinstance(se, (tuple, list)) and se:
-            se_val = se[0]
-        else:
-            se_val = se
-        return se_val.to(self._device)
-
-    def _convert_to_file(self, *, audio_src_path: str, output_path: str, src_se) -> None:
-        # API differs slightly across OpenVoice versions. Try with optional args first.
-        kwargs = {
-            "audio_src_path": audio_src_path,
-            "src_se": src_se,
-            "tgt_se": self.tgt_se,
-            "output_path": output_path,
-        }
-        if self.tau is not None:
-            kwargs["tau"] = float(self.tau)
-        if self.watermark_message:
-            kwargs["message"] = self.watermark_message
-
-        try:
-            self.converter.convert(**kwargs)
-            return
-        except TypeError:
-            pass
-
-        # Fallback: drop optional args.
-        kwargs.pop("tau", None)
-        try:
-            self.converter.convert(**kwargs)
-            return
-        except TypeError:
-            pass
-
-        kwargs.pop("message", None)
-        self.converter.convert(**kwargs)
+        # OpenVoice V2 commonly uses 24kHz, but we always read actual SR from the written wav.
+        self.sample_rate = int(getattr(self.converter.hps.data, "sampling_rate", 24000))
 
     def synthesize_to_wav(self, text: str, wav_path: str, *, speed: float = 1.0) -> str:
         text = (text or "").strip()
         if not text:
-            # Create an empty wav to keep callers simple.
             sf.write(wav_path, np.zeros((0,), dtype=np.float32), self.sample_rate)
             return wav_path
 
         out_dir = Path(wav_path).resolve().parent
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        fd, base_wav = tempfile.mkstemp(prefix="ov2_base_", suffix=".wav", dir=str(out_dir))
+        from tts_piper import synthesize_to_wav as piper_synthesize_to_wav
+
+        fd, base_wav = tempfile.mkstemp(prefix="ov_base_", suffix=".wav", dir=str(out_dir))
         os.close(fd)
         try:
-            if self.base_engine == "melo":
-                assert self.melo is not None and self._speaker_id is not None and self.src_se is not None
-                # Base speech from MeloTTS. Output is then converted to target voice.
-                self.melo.tts_to_file(
-                    text,
-                    self._speaker_id,
-                    base_wav,
-                    speed=float(speed),
-                )
-                src_se = self.src_se
-            else:
-                assert self.piper_tts is not None
-                from tts_piper import synthesize_to_wav as piper_synthesize_to_wav  # local module
+            piper_synthesize_to_wav(self.piper_tts, text, base_wav, speed=float(speed))
 
-                piper_synthesize_to_wav(self.piper_tts, text, base_wav, speed=float(speed))
-                # Extract source embedding from the generated base audio.
-                src_se = self._extract_se(base_wav, vad=False)
-
-            self._convert_to_file(audio_src_path=base_wav, output_path=wav_path, src_se=src_se)
+            tau = float(self.tau) if self.tau is not None else 0.3
+            self.converter.convert(
+                audio_src_path=base_wav,
+                src_se=self.src_se,
+                tgt_se=self.tgt_se,
+                output_path=wav_path,
+                tau=tau,
+                message=self.watermark_message or "default",
+            )
             return wav_path
         finally:
             try:
@@ -280,14 +324,12 @@ def create_tts(
     *,
     ckpt_dir: Optional[str] = None,
     ref_wav: Optional[str] = None,
-    base_engine: Optional[str] = None,
-    language: Optional[str] = None,
-    speaker_key: Optional[str] = None,
     device: Optional[str] = None,
-    ref_vad: Optional[bool] = None,
     tau: Optional[float] = None,
     watermark_message: Optional[str] = None,
     speed: float = 1.0,
+    base_engine: Optional[str] = None,
+    piper_provider: Optional[str] = None,
 ) -> OpenVoiceV2TTS:
     if ckpt_dir is None:
         ckpt_dir = os.environ.get("OPENVOICE_CKPT_DIR", str(DEFAULT_CKPT_DIR))
@@ -296,17 +338,12 @@ def create_tts(
     if not ref_wav:
         raise SystemExit("请先设置环境变量 OPENVOICE_REF_WAV (参考音频，用于固定音色)")
 
-    if base_engine is None:
-        base_engine = os.environ.get("OPENVOICE_BASE_ENGINE", "piper")
-
-    if language is None:
-        language = os.environ.get("OPENVOICE_LANGUAGE", "ZH")
-    if speaker_key is None:
-        speaker_key = os.environ.get("OPENVOICE_SPEAKER_KEY", "")
     if device is None:
         device = os.environ.get("OPENVOICE_DEVICE", "auto")
-    if ref_vad is None:
-        ref_vad = os.environ.get("OPENVOICE_REF_VAD", "1").strip() not in ("0", "false", "no")
+    if base_engine is None:
+        base_engine = os.environ.get("OPENVOICE_BASE_ENGINE", "piper")
+    if piper_provider is None:
+        piper_provider = os.environ.get("OPENVOICE_PIPER_PROVIDER", "cpu")
     if tau is None:
         v = os.environ.get("OPENVOICE_TAU", "").strip()
         if v:
@@ -320,14 +357,12 @@ def create_tts(
     return OpenVoiceV2TTS(
         ckpt_dir=str(ckpt_dir),
         ref_wav=str(ref_wav),
-        base_engine=str(base_engine),
-        language=str(language),
-        speaker_key=str(speaker_key or ""),
         device=str(device),
-        ref_vad=bool(ref_vad),
+        speed=float(speed),
         tau=tau,
         watermark_message=str(watermark_message or ""),
-        speed=float(speed),
+        base_engine=str(base_engine),
+        piper_provider=str(piper_provider),
     )
 
 
@@ -339,9 +374,9 @@ def synthesize_to_wav_with_duration(
     sid: int = 0,
     speed: float = 1.0,
 ) -> tuple[str, float]:
-    # Keep signature compatible with other TTS modules.
     _ = sid
     wav_path = tts.synthesize_to_wav(text, wav_path, speed=speed)
     sr, frames = _read_wav_info(wav_path)
     dur = 0.0 if sr <= 0 else (frames / float(sr))
     return wav_path, dur
+
