@@ -345,7 +345,15 @@ def create_tts(
         ckpt_dir = os.environ.get("OPENVOICE_CKPT_DIR", str(DEFAULT_CKPT_DIR))
     if ref_wav is None:
         ref_wav = os.environ.get("OPENVOICE_REF_WAV", "")
-    if not ref_wav:
+
+    # Convenience: if user didn't set env var, but a local reference wav exists,
+    # use it automatically to reduce setup friction on Windows.
+    if not (ref_wav or "").strip():
+        default_ref = Path(__file__).resolve().parent / "myvoice.wav"
+        if default_ref.exists():
+            ref_wav = str(default_ref)
+
+    if not (ref_wav or "").strip():
         raise SystemExit("请先设置环境变量 OPENVOICE_REF_WAV (参考音频，用于固定音色)")
 
     if device is None:

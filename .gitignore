@@ -45,6 +45,8 @@ myvoice*
 .env
 .env.*
 *.env
+env.ps1
+env.local.ps1
 
 # Third-party downloads (optional)
 third_party/*.zip
