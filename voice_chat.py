@@ -20,6 +20,27 @@ else:
     from tts_piper import create_tts, synthesize_to_wav_with_duration
 
 
+def init_tts_from_env():
+    """Initialize a TTS instance once and reuse it across wake sessions.
+
+    This avoids re-loading large models (e.g. CosyVoice) after every wakeword.
+    """
+    if TTS_ENGINE == "cosyvoice":
+        tts = create_tts()
+    elif TTS_ENGINE == "openvoice":
+        tts = create_tts()
+    else:
+        tts = create_tts(provider="cpu")
+
+    # Warm-up: reduce first synthesis latency.
+    try:
+        _ = tts.generate("你好")
+    except Exception:
+        pass
+
+    return tts
+
+
 def play_wav_with_typewriter(
     wav_path: str,
     text: str,
@@ -71,6 +92,7 @@ def run_voice_chat_session(
     device_index: int = -1,
     stop_event: Optional[threading.Event] = None,
     handle_keyboard_interrupt: bool = True,
+    tts_instance=None,
 ) -> None:
     """ASR -> LLM(stream) -> TTS(incremental).
 
@@ -107,21 +129,25 @@ def run_voice_chat_session(
     model = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
     trust_env = os.environ.get("DEEPSEEK_NO_PROXY", "").strip() not in ("1", "true", "yes")
 
-    if TTS_ENGINE == "cosyvoice":
-        tts = create_tts()
-    elif TTS_ENGINE == "openvoice":
-        tts = create_tts()
+    if tts_instance is not None:
+        tts = tts_instance
     else:
-        tts = create_tts(provider="cpu")
+        if TTS_ENGINE == "cosyvoice":
+            tts = create_tts()
+        elif TTS_ENGINE == "openvoice":
+            tts = create_tts()
+        else:
+            tts = create_tts(provider="cpu")
 
     # Some third-party libs call logging.basicConfig() during import and reset the
     # level/handlers. Re-apply our console log policy after TTS init.
     quiet_logs()
-    # warm-up: reduce the first synthesis latency
-    try:
-        _ = tts.generate("你好")
-    except Exception:
-        pass
+    # warm-up: reduce the first synthesis latency (only when we created the instance)
+    if tts_instance is None:
+        try:
+            _ = tts.generate("你好")
+        except Exception:
+            pass
 
     messages: List[Dict[str, str]] = [
         {"role": "system", "content": "你是一个中文语音助手，回答要简洁、自然。"},
@@ -262,18 +288,50 @@ def run_voice_chat_session(
         def playback_worker() -> None:
             # Print assistant at speech pace by chunked TTS.
             print("助手: ", end="", flush=True)
+
+            # Optional jitter buffer: wait for a bit of audio to be ready before we start
+            # playing, so chunk boundaries are less likely to produce audible gaps.
+            prebuffer_sec = float(os.environ.get("TTS_PREBUFFER_SEC", "0.4"))
+            buffered: List[Tuple[str, str, float]] = []
+            buffered_dur = 0.0
+            started = False
+
             while True:
                 item = audio_q.get()
-                try:
-                    if item is None:
-                        return
-                    part, wav_path, dur = item
-                    play_wav_with_typewriter(wav_path, part, dur, prefix="", end="")
+                if item is None:
+                    # Drain buffered items before exit.
+                    while buffered:
+                        part0, wav0, dur0 = buffered.pop(0)
+                        buffered_dur = max(0.0, buffered_dur - float(dur0))
+                        play_wav_with_typewriter(wav0, part0, dur0, prefix="", end="")
+                        try:
+                            os.remove(wav0)
+                        except Exception:
+                            pass
+                        audio_q.task_done()
+
+                    audio_q.task_done()  # ack the sentinel
+                    return
+
+                part, wav_path, dur = item
+                buffered.append((part, wav_path, dur))
+                buffered_dur += float(dur)
+
+                if (not started) and prebuffer_sec > 0 and buffered_dur < prebuffer_sec:
+                    # Keep buffering.
+                    continue
+
+                started = True
+                # Play as many buffered items as possible (we keep buffering during playback
+                # via the TTS worker thread).
+                while buffered:
+                    part0, wav0, dur0 = buffered.pop(0)
+                    buffered_dur = max(0.0, buffered_dur - float(dur0))
+                    play_wav_with_typewriter(wav0, part0, dur0, prefix="", end="")
                     try:
-                        os.remove(wav_path)
+                        os.remove(wav0)
                     except Exception:
                         pass
-                finally:
                     audio_q.task_done()
 
         synth_t = threading.Thread(target=synth_worker, daemon=True)
@@ -314,8 +372,9 @@ def run_voice_chat_session(
             return out
 
         # After the first chunk, we ramp from short -> long.
-        # You can override with: TTS_LADDER="10:24,12:32,14:40,16:56"
-        ladder = parse_ladder(os.environ.get("TTS_LADDER", "10:28,12:36,14:48,16:64"))
+        # Default is tuned for smoother audio on local TTS (avoid cutting words too often).
+        # You can override with: TTS_LADDER="10:32,12:44,14:60,16:80"
+        ladder = parse_ladder(os.environ.get("TTS_LADDER", "10:32,12:44,14:60,16:80"))
         if not ladder:
             ladder = [(int(os.environ.get("TTS_MIN_CHARS", "10")), int(os.environ.get("TTS_HARD_MAX_CHARS", "36")))]
 
