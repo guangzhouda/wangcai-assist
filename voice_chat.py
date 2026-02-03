@@ -56,13 +56,23 @@ def _play_wav_async(path: str) -> bool:
     out_idx_s = os.environ.get("OUTPUT_DEVICE_INDEX", "").strip()
     backend = os.environ.get("AUDIO_BACKEND", "").strip().lower()
 
-    use_sd = bool(out_idx_s) or backend in ("sounddevice", "sd")
+    out_idx: Optional[int] = None
+    if out_idx_s:
+        try:
+            out_idx = int(out_idx_s)
+        except ValueError:
+            out_idx = None
+    # "-1" means default; treat it as "not specified" so we can fall back to winsound.
+    if out_idx is not None and out_idx < 0:
+        out_idx = None
+
+    use_sd = (out_idx is not None) or backend in ("sounddevice", "sd")
     if use_sd:
         try:
             import numpy as np  # type: ignore
             import sounddevice as sd  # type: ignore
         except Exception as exc:
-            if bool(out_idx_s) or backend:
+            if (out_idx is not None) or backend:
                 raise RuntimeError(
                     "要在代码里选择扬声器，请先安装 sounddevice：pip install sounddevice\n"
                     "或者删除 OUTPUT_DEVICE_INDEX / AUDIO_BACKEND，改用系统默认输出。"
@@ -94,14 +104,7 @@ def _play_wav_async(path: str) -> bool:
         if ch > 1:
             data = data.reshape(-1, ch)
 
-        dev = None
-        if out_idx_s:
-            try:
-                idx = int(out_idx_s)
-                if idx >= 0:
-                    dev = idx
-            except ValueError:
-                dev = None
+        dev = out_idx
 
         sd.play(data, sr, device=dev, blocking=False)
         return True

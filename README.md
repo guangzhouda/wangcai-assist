@@ -100,6 +100,12 @@ python .\main.py
 python .\floating_ui.py
 ```
 
+可选：普通窗口 UI（带日志区，便于调试；可选输入/输出设备）：
+
+```powershell
+python .\ui_window.py
+```
+
 托盘图标依赖（如未安装会自动提示）：
 
 ```powershell
