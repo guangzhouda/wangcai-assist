@@ -61,6 +61,8 @@ def _create_process(
     kws_sensitivity: float,
     asr_provider: str,
     tts_engine: str,
+    cosyvoice_prompt_wav: str = "",
+    cosyvoice_prompt_text: str = "",
     openvoice_ckpt_dir: str = "",
     openvoice_ref_wav: str = "",
     openvoice_device: str = "",
@@ -84,6 +86,11 @@ def _create_process(
     env["KWS_SENSITIVITY"] = str(kws_sensitivity)
     env["ASR_PROVIDER"] = (asr_provider or "cuda").strip()
     env["TTS_ENGINE"] = (tts_engine or "piper").strip()
+
+    if cosyvoice_prompt_wav.strip():
+        env["COSYVOICE_PROMPT_WAV"] = cosyvoice_prompt_wav.strip()
+    if cosyvoice_prompt_text.strip():
+        env["COSYVOICE_PROMPT_TEXT"] = cosyvoice_prompt_text.strip()
 
     if openvoice_ckpt_dir.strip():
         env["OPENVOICE_CKPT_DIR"] = openvoice_ckpt_dir.strip()
@@ -209,6 +216,21 @@ def main() -> None:
     openvoice_base_var = tk.StringVar(value=os.environ.get("OPENVOICE_BASE_ENGINE", "piper"))
     openvoice_piper_provider_var = tk.StringVar(value=os.environ.get("OPENVOICE_PIPER_PROVIDER", "cpu"))
 
+    # CosyVoice (optional)
+    default_ref_wav = str(PROJECT_DIR / "myvoice.wav") if (PROJECT_DIR / "myvoice.wav").exists() else ""
+    cosy_prompt_wav_var = tk.StringVar(value=os.environ.get("COSYVOICE_PROMPT_WAV", default_ref_wav))
+    default_prompt_text = os.environ.get("COSYVOICE_PROMPT_TEXT", "")
+    if not default_prompt_text:
+        ref_txt = PROJECT_DIR / "myvoice-ref.txt"
+        if ref_txt.exists():
+            try:
+                default_prompt_text = ref_txt.read_text(encoding="utf-8").strip()
+            except Exception:
+                default_prompt_text = ""
+    if not default_prompt_text:
+        default_prompt_text = "你好，我是旺财。"
+    cosy_prompt_text_var = tk.StringVar(value=default_prompt_text)
+
     def add_row(r: int, label: str, widget) -> None:
         ttk.Label(top, text=label).grid(row=r, column=0, sticky="w", padx=(0, 8), pady=4)
         widget.grid(row=r, column=1, sticky="ew", pady=4)
@@ -242,9 +264,19 @@ def main() -> None:
     ov_row(3, "BASE", ttk.Combobox(ov, textvariable=openvoice_base_var, values=["piper"], state="readonly"))
     ov_row(4, "PIPER_PROVIDER", ttk.Combobox(ov, textvariable=openvoice_piper_provider_var, values=["cpu", "cuda"], state="readonly"))
 
+    cosy = ttk.LabelFrame(top, text="CosyVoice (仅当 TTS_ENGINE=cosyvoice)", padding=8)
+    cosy.grid(row=8, column=2, sticky="nsew", padx=(12, 0), pady=(10, 0))
+    cosy.columnconfigure(1, weight=1)
+
+    ttk.Label(cosy, text="PROMPT_WAV").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=3)
+    ttk.Entry(cosy, textvariable=cosy_prompt_wav_var).grid(row=0, column=1, sticky="ew", pady=3)
+
+    ttk.Label(cosy, text="PROMPT_TEXT").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=3)
+    ttk.Entry(cosy, textvariable=cosy_prompt_text_var).grid(row=1, column=1, sticky="ew", pady=3)
+
     # Buttons row
     btns = ttk.Frame(top)
-    btns.grid(row=8, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+    btns.grid(row=9, column=0, columnspan=3, sticky="ew", pady=(8, 0))
     btns.columnconfigure(2, weight=1)
 
     status_lbl = ttk.Label(btns, textvariable=status_var)
@@ -285,6 +317,8 @@ def main() -> None:
             kws_sensitivity=float(kws_sens_var.get()),
             asr_provider=(asr_provider_var.get() or "cuda").strip(),
             tts_engine=(tts_engine_var.get() or "piper").strip(),
+            cosyvoice_prompt_wav=cosy_prompt_wav_var.get(),
+            cosyvoice_prompt_text=cosy_prompt_text_var.get(),
             openvoice_ckpt_dir=openvoice_ckpt_var.get(),
             openvoice_ref_wav=openvoice_ref_var.get(),
             openvoice_device=openvoice_device_var.get(),
@@ -342,4 +376,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
