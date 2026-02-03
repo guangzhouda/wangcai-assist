@@ -4,6 +4,7 @@ import tempfile
 import time
 import threading
 import logging
+import wave
 from pathlib import Path
 from queue import Queue
 from typing import Dict, List, Optional, Tuple
@@ -45,6 +46,75 @@ def init_tts_from_env():
     return tts
 
 
+def _play_wav_async(path: str) -> bool:
+    """Play wav asynchronously.
+
+    - If OUTPUT_DEVICE_INDEX is set (or AUDIO_BACKEND=sounddevice), use sounddevice so we
+      can choose a speaker device.
+    - Otherwise fallback to winsound (uses system default output device).
+    """
+    out_idx_s = os.environ.get("OUTPUT_DEVICE_INDEX", "").strip()
+    backend = os.environ.get("AUDIO_BACKEND", "").strip().lower()
+
+    use_sd = bool(out_idx_s) or backend in ("sounddevice", "sd")
+    if use_sd:
+        try:
+            import numpy as np  # type: ignore
+            import sounddevice as sd  # type: ignore
+        except Exception as exc:
+            if bool(out_idx_s) or backend:
+                raise RuntimeError(
+                    "要在代码里选择扬声器，请先安装 sounddevice：pip install sounddevice\n"
+                    "或者删除 OUTPUT_DEVICE_INDEX / AUDIO_BACKEND，改用系统默认输出。"
+                ) from exc
+            return False
+
+        try:
+            with wave.open(path, "rb") as w:
+                sr = int(w.getframerate())
+                ch = int(w.getnchannels())
+                sw = int(w.getsampwidth())
+                frames = w.readframes(w.getnframes())
+        except Exception:
+            return False
+
+        if sr <= 0 or ch <= 0 or sw <= 0:
+            return False
+
+        if sw == 2:
+            data = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+        elif sw == 4:
+            data = np.frombuffer(frames, dtype=np.int32).astype(np.float32) / 2147483648.0
+        elif sw == 1:
+            # 8-bit PCM is unsigned
+            data = (np.frombuffer(frames, dtype=np.uint8).astype(np.float32) - 128.0) / 128.0
+        else:
+            return False
+
+        if ch > 1:
+            data = data.reshape(-1, ch)
+
+        dev = None
+        if out_idx_s:
+            try:
+                idx = int(out_idx_s)
+                if idx >= 0:
+                    dev = idx
+            except ValueError:
+                dev = None
+
+        sd.play(data, sr, device=dev, blocking=False)
+        return True
+
+    try:
+        import winsound
+
+        winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+        return True
+    except Exception:
+        return False
+
+
 def play_wav_with_typewriter(
     wav_path: str,
     text: str,
@@ -55,9 +125,9 @@ def play_wav_with_typewriter(
 ) -> None:
     """Play a pre-synthesized wav while printing text at (roughly) audio pace."""
     try:
-        import winsound
-
-        winsound.PlaySound(wav_path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+        ok = _play_wav_async(wav_path)
+        if not ok:
+            duration_sec = 0.0
     except Exception:
         # If playback fails, we still print the text.
         duration_sec = 0.0
@@ -382,9 +452,7 @@ def run_voice_chat_session(
                     try:
                         if started_playback.is_set():
                             return
-                        import winsound
-
-                        winsound.PlaySound(think_ack_wav, winsound.SND_FILENAME)
+                        _play_wav_async(think_ack_wav)
                     finally:
                         play_lock.release()
                 except Exception:

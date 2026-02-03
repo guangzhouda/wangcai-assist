@@ -21,6 +21,23 @@ def _safe_get_devices() -> list[str]:
         return []
 
 
+def _safe_get_output_devices() -> list[str]:
+    try:
+        import sounddevice as sd  # type: ignore
+
+        devs = sd.query_devices()
+        out: list[str] = []
+        for i, d in enumerate(devs):
+            try:
+                if int(d.get("max_output_channels", 0)) > 0:
+                    out.append(f"[{i}] {d.get('name', '')}")
+            except Exception:
+                pass
+        return out
+    except Exception:
+        return []
+
+
 def _parse_device_choice(s: str) -> int:
     s = (s or "").strip()
     if s.startswith("Default"):
@@ -40,6 +57,7 @@ def _create_process(
     deepseek_key: str,
     mic_device_index: int,
     kws_device_index: int,
+    output_device_index: int,
     kws_sensitivity: float,
     asr_provider: str,
     tts_engine: str,
@@ -57,6 +75,7 @@ def _create_process(
 
     env["MIC_DEVICE_INDEX"] = str(mic_device_index)
     env["KWS_DEVICE_INDEX"] = str(kws_device_index)
+    env["OUTPUT_DEVICE_INDEX"] = str(output_device_index)
     env["KWS_SENSITIVITY"] = str(kws_sensitivity)
     env["ASR_PROVIDER"] = (asr_provider or "cuda").strip()
     env["TTS_ENGINE"] = (tts_engine or "piper").strip()
@@ -150,6 +169,9 @@ def main() -> None:
     devices = _safe_get_devices()
     device_choices = ["Default (-1)"] + [f"[{i}] {name}" for i, name in enumerate(devices)]
 
+    out_devs = _safe_get_output_devices()
+    out_choices = ["Default (-1)"] + out_devs
+
     root = tk.Tk()
     root.title("Wangcai Assist")
 
@@ -200,6 +222,7 @@ def main() -> None:
     deepseek_var = tk.StringVar(value=os.environ.get("DEEPSEEK_API_KEY", ""))
     mic_var = tk.StringVar(value="Default (-1)")
     kws_var = tk.StringVar(value="Default (-1)")
+    speaker_var = tk.StringVar(value="Default (-1)")
     kws_sens_var = tk.DoubleVar(value=float(os.environ.get("KWS_SENSITIVITY", "0.5") or "0.5"))
     asr_provider_var = tk.StringVar(value=os.environ.get("ASR_PROVIDER", "cuda"))
     tts_engine_var = tk.StringVar(value=os.environ.get("TTS_ENGINE", "piper"))
@@ -326,6 +349,7 @@ def main() -> None:
             deepseek_key=deepseek_var.get(),
             mic_device_index=_parse_device_choice(mic_var.get()),
             kws_device_index=_parse_device_choice(kws_var.get()),
+            output_device_index=_parse_device_choice(speaker_var.get()),
             kws_sensitivity=float(kws_sens_var.get()),
             asr_provider=(asr_provider_var.get() or "cuda").strip(),
             tts_engine=(tts_engine_var.get() or "piper").strip(),
@@ -436,11 +460,14 @@ def main() -> None:
     kws_combo = ttk.Combobox(controls, textvariable=kws_var, values=device_choices, state="readonly", style="W.TCombobox")
     add_row(3, "麦克风 (KWS)", kws_combo)
 
+    spk_combo = ttk.Combobox(controls, textvariable=speaker_var, values=out_choices, state="readonly", style="W.TCombobox")
+    add_row(4, "扬声器 (输出)", spk_combo)
+
     sens = ttk.Scale(controls, variable=kws_sens_var, from_=0.1, to=0.9, orient="horizontal")
-    add_row(4, "KWS 灵敏度", sens)
+    add_row(5, "KWS 灵敏度", sens)
 
     asr_combo = ttk.Combobox(controls, textvariable=asr_provider_var, values=["cuda", "cpu"], state="readonly", style="W.TCombobox")
-    add_row(5, "ASR Provider", asr_combo)
+    add_row(6, "ASR Provider", asr_combo)
 
     tts_combo = ttk.Combobox(
         controls,
@@ -449,18 +476,18 @@ def main() -> None:
         state="readonly",
         style="W.TCombobox",
     )
-    add_row(6, "TTS 引擎", tts_combo)
+    add_row(7, "TTS 引擎", tts_combo)
 
     # OpenVoice V2 (shown only when TTS_ENGINE=openvoice)
     ov_ckpt_label = ttk.Label(controls, text="OV CKPT_DIR", style="W.Muted.TLabel")
     ov_ckpt_entry = ttk.Entry(controls, textvariable=openvoice_ckpt_var, style="W.TEntry")
-    ov_ckpt_label.grid(row=7, column=0, sticky="w", padx=(0, 8), pady=4)
-    ov_ckpt_entry.grid(row=7, column=1, sticky="ew", pady=4)
+    ov_ckpt_label.grid(row=8, column=0, sticky="w", padx=(0, 8), pady=4)
+    ov_ckpt_entry.grid(row=8, column=1, sticky="ew", pady=4)
 
     ov_ref_label = ttk.Label(controls, text="OV REF_WAV", style="W.Muted.TLabel")
     ov_ref_entry = ttk.Entry(controls, textvariable=openvoice_ref_var, style="W.TEntry")
-    ov_ref_label.grid(row=8, column=0, sticky="w", padx=(0, 8), pady=4)
-    ov_ref_entry.grid(row=8, column=1, sticky="ew", pady=4)
+    ov_ref_label.grid(row=9, column=0, sticky="w", padx=(0, 8), pady=4)
+    ov_ref_entry.grid(row=9, column=1, sticky="ew", pady=4)
 
     ov_dev_label = ttk.Label(controls, text="OV DEVICE", style="W.Muted.TLabel")
     ov_dev_combo = ttk.Combobox(
@@ -470,8 +497,8 @@ def main() -> None:
         state="readonly",
         style="W.TCombobox",
     )
-    ov_dev_label.grid(row=9, column=0, sticky="w", padx=(0, 8), pady=4)
-    ov_dev_combo.grid(row=9, column=1, sticky="ew", pady=4)
+    ov_dev_label.grid(row=10, column=0, sticky="w", padx=(0, 8), pady=4)
+    ov_dev_combo.grid(row=10, column=1, sticky="ew", pady=4)
 
     ov_base_label = ttk.Label(controls, text="OV BASE", style="W.Muted.TLabel")
     ov_base_combo = ttk.Combobox(
@@ -481,8 +508,8 @@ def main() -> None:
         state="readonly",
         style="W.TCombobox",
     )
-    ov_base_label.grid(row=10, column=0, sticky="w", padx=(0, 8), pady=4)
-    ov_base_combo.grid(row=10, column=1, sticky="ew", pady=4)
+    ov_base_label.grid(row=11, column=0, sticky="w", padx=(0, 8), pady=4)
+    ov_base_combo.grid(row=11, column=1, sticky="ew", pady=4)
 
     ov_piper_label = ttk.Label(controls, text="OV Piper", style="W.Muted.TLabel")
     ov_piper_combo = ttk.Combobox(
@@ -492,8 +519,8 @@ def main() -> None:
         state="readonly",
         style="W.TCombobox",
     )
-    ov_piper_label.grid(row=11, column=0, sticky="w", padx=(0, 8), pady=4)
-    ov_piper_combo.grid(row=11, column=1, sticky="ew", pady=4)
+    ov_piper_label.grid(row=12, column=0, sticky="w", padx=(0, 8), pady=4)
+    ov_piper_combo.grid(row=12, column=1, sticky="ew", pady=4)
 
     openvoice_widgets = [
         ov_ckpt_label,

@@ -41,6 +41,8 @@ $env:TTS_ENGINE = "piper"
 # $env:MIC_DEVICE_INDEX = "-1"
 # $env:KWS_DEVICE_INDEX = "-1"
 # $env:KWS_SENSITIVITY = "0.5"
+# Output speaker selection (only works when sounddevice is installed; otherwise uses system default):
+# $env:OUTPUT_DEVICE_INDEX = "-1"
 
 # --- ASR provider ---
 # cpu | cuda (note: sherpa-onnx may fallback to cpu if GPU is not enabled in your build)
