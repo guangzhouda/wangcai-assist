@@ -230,13 +230,22 @@ def run_voice_chat_session(
     out_dir = Path(__file__).resolve().parent / "output"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # Global speech speed. <1 slower, >1 faster. Not all engines interpret it the same,
+    # but we keep a single knob for quick tuning.
+    try:
+        tts_speed = float(os.environ.get("TTS_SPEED", "1.0"))
+    except ValueError:
+        tts_speed = 1.0
+    if tts_speed <= 0:
+        tts_speed = 1.0
+
     think_ack_text = os.environ.get("VOICE_THINK_ACK_TEXT", "嗯").strip()
     think_ack_delay = float(os.environ.get("VOICE_THINK_ACK_DELAY", "0.6"))
     think_ack_wav: Optional[str] = None
     if think_ack_text:
         try:
             ack_path = out_dir / f"think_ack_{TTS_ENGINE}.wav"
-            wav_path, _dur = synthesize_to_wav_with_duration(tts, think_ack_text, str(ack_path), speed=1.0)
+            wav_path, _dur = synthesize_to_wav_with_duration(tts, think_ack_text, str(ack_path), speed=tts_speed)
             think_ack_wav = wav_path
         except Exception:
             think_ack_wav = None
@@ -332,7 +341,7 @@ def run_voice_chat_session(
             try:
                 fd, wav_path = tempfile.mkstemp(prefix="tts_", suffix=".wav", dir=str(out_dir))
                 os.close(fd)
-                wav_path, dur = synthesize_to_wav_with_duration(tts, exit_ack, wav_path, speed=1.0)
+                wav_path, dur = synthesize_to_wav_with_duration(tts, exit_ack, wav_path, speed=tts_speed)
                 play_wav_with_typewriter(wav_path, exit_ack, dur, prefix="助手: ", end="\n")
                 try:
                     os.remove(wav_path)
@@ -373,7 +382,7 @@ def run_voice_chat_session(
                         tts,
                         part,
                         wav_path,
-                        speed=1.0,
+                        speed=tts_speed,
                     )
                     audio_q.put((part, wav_path, float(dur)))
                 finally:

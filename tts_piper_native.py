@@ -144,6 +144,29 @@ def _get_inference_scales(cfg: dict, *, speed: float = 1.0) -> Tuple[float, floa
     base_length_scale = float(inf.get("length_scale", 1.0))
     noise_w = float(inf.get("noise_w", 0.8))
 
+    # Optional overrides for tuning clarity/stability (useful for pinyin voices).
+    # Lower noise_scale/noise_w tends to reduce "含糊/抖动"，but may sound less expressive.
+    v = os.environ.get("PIPER_NATIVE_NOISE_SCALE", "").strip()
+    if v:
+        try:
+            noise_scale = float(v)
+        except ValueError:
+            pass
+
+    v = os.environ.get("PIPER_NATIVE_NOISE_W", "").strip()
+    if v:
+        try:
+            noise_w = float(v)
+        except ValueError:
+            pass
+
+    v = os.environ.get("PIPER_NATIVE_LENGTH_SCALE", "").strip()
+    if v:
+        try:
+            base_length_scale = float(v)
+        except ValueError:
+            pass
+
     if speed and speed > 0:
         length_scale = base_length_scale / float(speed)
     else:
