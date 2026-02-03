@@ -19,8 +19,15 @@ $ErrorActionPreference = "Stop"
 # $env:NO_PROXY    = "127.0.0.1,localhost"
 
 # --- Engine selection ---
-# piper | cosyvoice | openvoice
+# piper (sherpa-onnx OfflineTts) | piper_native (official piper.exe) | cosyvoice | openvoice
 $env:TTS_ENGINE = "piper"
+
+# --- Piper (official runtime) ---
+# Only needed when $env:TTS_ENGINE = "piper_native"
+# $env:PIPER_BIN = "E:\\path\\to\\piper.exe"
+# $env:PIPER_NATIVE_MODEL_DIR = "E:\\Projects\\wangcai-assist\\model\\piper_zh_xiao_ya"   # voice folder containing *.onnx (+ *.onnx.json)
+# Optional (when the folder contains multiple *.onnx):
+# $env:PIPER_NATIVE_ONNX = "E:\\Projects\\wangcai-assist\\model\\piper_zh_xiao_ya\\zh_CN-xiao_ya.onnx"
 
 # --- OpenVoice V2 ---
 # If not set, tts_openvoice.py will use .\\myvoice.wav when it exists.
@@ -38,4 +45,3 @@ $env:TTS_ENGINE = "piper"
 # --- ASR provider ---
 # cpu | cuda (note: sherpa-onnx may fallback to cpu if GPU is not enabled in your build)
 # $env:ASR_PROVIDER = "cuda"
-

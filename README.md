@@ -8,6 +8,7 @@
 - LLM（对话）：DeepSeek（OpenAI 兼容 Chat Completions，支持 SSE 流式输出）
 - TTS（语音合成）：
   - Piper VITS（通过 sherpa_onnx OfflineTts）
+  - Piper 官方运行时（`piper.exe`，支持 `phoneme_type=pinyin` 的中文音色，如 xiao_ya/chaowen）
   - CosyVoice2（本地模型，固定音色零样本）
 
 重要：本仓库 **不会提交任何模型文件/大文件/密钥**。模型请按 README 指引自行下载到本地 `model/`。
@@ -58,7 +59,16 @@ DeepSeek：
 
 TTS 选择：
 
-- `TTS_ENGINE=piper`（默认）或 `TTS_ENGINE=cosyvoice` 或 `TTS_ENGINE=openvoice`
+- `TTS_ENGINE=piper`（默认，sherpa-onnx Piper）
+- `TTS_ENGINE=piper_native`（官方 `piper.exe`，适合 `phoneme_type=pinyin` 的音色）
+- `TTS_ENGINE=cosyvoice`
+- `TTS_ENGINE=openvoice`
+
+Piper 官方运行时（当 `TTS_ENGINE=piper_native` 时需要）：
+
+- `PIPER_BIN`：`piper.exe` 路径（或把它放到 `third_party/piper/piper.exe`）
+- `PIPER_NATIVE_MODEL_DIR`：音色目录（包含 `*.onnx` 和通常的 `*.onnx.json`）
+- `PIPER_NATIVE_ONNX`：可选；当目录里有多个 `*.onnx` 时指定具体文件
 
 CosyVoice（固定音色，必填）：
 
@@ -72,6 +82,7 @@ CosyVoice（固定音色，必填）：
 - `model/silero_vad/silero_vad.onnx`
 - `model/sherpa-onnx-streaming-zipformer-small-bilingual-zh-en-2023-02-16/`（encoder/decoder/joiner/tokens 等）
 - `model/vits-piper-zh_CN-huayan-medium/`（onnx + tokens + espeak-ng-data）
+- `model/piper_zh_xiao_ya/`（示例：官方 piper 运行时音色目录，含 `*.onnx` + `*.onnx.json`）
 - `model/CosyVoice2-0.5B/`（CosyVoice2 模型目录）
 - `model/openvoice_v2/checkpoints_v2/`（OpenVoiceV2 checkpoints：converter 等）
 
@@ -140,6 +151,15 @@ $env:OPENVOICE_REF_WAV="E:\path\to\ref.wav"
 $env:OPENVOICE_BASE_ENGINE="piper"
 # 可选：$env:OPENVOICE_DEVICE="auto"  # 或 cuda / cpu
 # 可选：$env:OPENVOICE_PIPER_PROVIDER="cpu"  # 或 cuda（需要 sherpa-onnx 支持 GPU provider）
+python .\main.py
+```
+
+Piper 官方运行时（piper_native）：
+
+```powershell
+$env:TTS_ENGINE="piper_native"
+$env:PIPER_BIN="E:\\path\\to\\piper.exe"  # 或放到 .\\third_party\\piper\\piper.exe
+$env:PIPER_NATIVE_MODEL_DIR="E:\\Projects\\wangcai-assist\\model\\piper_zh_xiao_ya"
 python .\main.py
 ```
 

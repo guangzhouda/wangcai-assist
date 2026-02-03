@@ -50,6 +50,7 @@ env.local.ps1
 
 # Third-party downloads (optional)
 third_party/*.zip
+third_party/piper/
 third_party/CosyVoice/
 third_party/_tmp_matcha/
 third_party/_tmp_openvoice_src/
