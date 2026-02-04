@@ -208,8 +208,7 @@ class OpenVoiceV2TTS:
         speed: float = 1.0,
         tau: Optional[float] = None,
         watermark_message: str = "",
-        base_engine: str = "piper",
-        piper_provider: str = "cpu",
+        base_engine: str = "melo",
     ) -> None:
         torch, _, _, _, _, _ = _import_openvoice_core()
 
@@ -219,8 +218,7 @@ class OpenVoiceV2TTS:
         self.speed = float(speed)
         self.tau = tau
         self.watermark_message = (watermark_message or "").strip()
-        self.base_engine = (base_engine or "piper").strip().lower()
-        self.piper_provider = (piper_provider or "cpu").strip().lower()
+        self.base_engine = (base_engine or "melo").strip().lower()
 
         ckpt = Path(self.ckpt_dir)
         if not ckpt.exists():
@@ -258,18 +256,18 @@ class OpenVoiceV2TTS:
 
         self.tgt_se = self.converter.extract_se(str(ref_path), se_save_path=str(out_dir / "tgt_se.pth")).to(self._device)
 
-        # Base engine (default: Piper) + precompute src_se once
-        if self.base_engine != "piper":
-            raise SystemExit("当前仅支持 OPENVOICE_BASE_ENGINE=piper（更稳，不会引入额外依赖）。")
+        # Base engine (default: MeloTTS) + precompute src_se once
+        if self.base_engine != "melo":
+            raise SystemExit("当前仅支持 OPENVOICE_BASE_ENGINE=melo。")
 
-        from tts_piper import create_tts as piper_create_tts, synthesize_to_wav as piper_synthesize_to_wav
+        from tts_melo import create_tts as melo_create_tts, synthesize_to_wav_with_duration as melo_synthesize
 
-        self.piper_tts = piper_create_tts(provider=self.piper_provider)
+        self.melo_tts = melo_create_tts(provider="cpu")
 
         fd, probe_wav = tempfile.mkstemp(prefix="ov_src_", suffix=".wav", dir=str(out_dir))
         os.close(fd)
         try:
-            piper_synthesize_to_wav(self.piper_tts, "你好", probe_wav, speed=1.0)
+            melo_synthesize(self.melo_tts, "你好", probe_wav, speed=1.0)
             self.src_se = self.converter.extract_se(probe_wav, se_save_path=str(out_dir / "src_se.pth")).to(self._device)
         finally:
             try:
@@ -289,12 +287,12 @@ class OpenVoiceV2TTS:
         out_dir = Path(wav_path).resolve().parent
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        from tts_piper import synthesize_to_wav as piper_synthesize_to_wav
+        from tts_melo import synthesize_to_wav_with_duration as melo_synthesize
 
         fd, base_wav = tempfile.mkstemp(prefix="ov_base_", suffix=".wav", dir=str(out_dir))
         os.close(fd)
         try:
-            piper_synthesize_to_wav(self.piper_tts, text, base_wav, speed=float(speed))
+            melo_synthesize(self.melo_tts, text, base_wav, speed=float(speed))
 
             tau = float(self.tau) if self.tau is not None else 0.3
             self.converter.convert(
@@ -339,7 +337,6 @@ def create_tts(
     watermark_message: Optional[str] = None,
     speed: float = 1.0,
     base_engine: Optional[str] = None,
-    piper_provider: Optional[str] = None,
 ) -> OpenVoiceV2TTS:
     if ckpt_dir is None:
         ckpt_dir = os.environ.get("OPENVOICE_CKPT_DIR", str(DEFAULT_CKPT_DIR))
@@ -359,9 +356,7 @@ def create_tts(
     if device is None:
         device = os.environ.get("OPENVOICE_DEVICE", "auto")
     if base_engine is None:
-        base_engine = os.environ.get("OPENVOICE_BASE_ENGINE", "piper")
-    if piper_provider is None:
-        piper_provider = os.environ.get("OPENVOICE_PIPER_PROVIDER", "cpu")
+        base_engine = os.environ.get("OPENVOICE_BASE_ENGINE", "melo")
     if tau is None:
         v = os.environ.get("OPENVOICE_TAU", "").strip()
         if v:
@@ -380,7 +375,6 @@ def create_tts(
         tau=tau,
         watermark_message=str(watermark_message or ""),
         base_engine=str(base_engine),
-        piper_provider=str(piper_provider),
     )
 
 

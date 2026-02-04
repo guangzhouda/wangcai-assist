@@ -174,7 +174,7 @@ def synthesize_to_wav_with_duration(
     sid: int = 0,
     speed: float = 1.0,
 ) -> tuple[str, float]:
-    # Keep signature compatible with tts_piper.synthesize_to_wav_with_duration.
+    # Keep signature compatible with other TTS backends used by voice_chat.py.
     # CosyVoice doesn't use "sid"; speed is supported via CosyVoiceTTS.speed.
     _ = sid
 

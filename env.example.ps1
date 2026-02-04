@@ -19,22 +19,14 @@ $ErrorActionPreference = "Stop"
 # $env:NO_PROXY    = "127.0.0.1,localhost"
 
 # --- Engine selection ---
-# piper (sherpa-onnx OfflineTts) | piper_native (official piper.exe) | melo | matcha | cosyvoice | openvoice
-$env:TTS_ENGINE = "piper"
-
-# --- Piper (official runtime) ---
-# Only needed when $env:TTS_ENGINE = "piper_native"
-# $env:PIPER_BIN = "E:\\path\\to\\piper.exe"
-# $env:PIPER_NATIVE_MODEL_DIR = "E:\\Projects\\wangcai-assist\\model\\piper_zh_xiao_ya"   # voice folder containing *.onnx (+ *.onnx.json)
-# Optional (when the folder contains multiple *.onnx):
-# $env:PIPER_NATIVE_ONNX = "E:\\Projects\\wangcai-assist\\model\\piper_zh_xiao_ya\\zh_CN-xiao_ya.onnx"
+# melo (default) | cosyvoice | openvoice | matcha (English)
+$env:TTS_ENGINE = "melo"
 
 # --- OpenVoice V2 ---
 # If not set, tts_openvoice.py will use .\\myvoice.wav when it exists.
 # $env:OPENVOICE_REF_WAV = "E:\\Projects\\wangcai-assist\\myvoice.wav"
 # $env:OPENVOICE_DEVICE = "auto"          # auto | cpu | cuda
-# $env:OPENVOICE_BASE_ENGINE = "piper"    # only piper supported in this repo
-# $env:OPENVOICE_PIPER_PROVIDER = "cpu"   # cpu | cuda (if sherpa-onnx supports it)
+# $env:OPENVOICE_BASE_ENGINE = "melo"     # base TTS used before voice conversion
 
 # --- Matcha-TTS (pretrained English checkpoints) ---
 # $env:TTS_ENGINE = "matcha"
@@ -49,8 +41,8 @@ $env:TTS_ENGINE = "piper"
 # $env:MATCHA_DENOISER_STRENGTH = "0.00025"  # 0 disables denoiser (faster)
 #
 # Windows 需要 espeak-ng（phonemizer 后端）:
-# 如果你已经下载了 Piper runtime（third_party\\piper\\piper\\espeak-ng.dll），本项目会自动复用。
-# 也可以手动指定：
+# 你需要提供 espeak-ng 的 dll 与 data 目录（或自行安装到系统环境里）。
+# 可手动指定：
 # $env:PHONEMIZER_ESPEAK_LIBRARY = "E:\\Projects\\wangcai-assist\\third_party\\piper\\piper\\espeak-ng.dll"
 # $env:ESPEAK_DATA_PATH = "E:\\Projects\\wangcai-assist\\third_party\\piper\\piper\\espeak-ng-data"
 

@@ -13,7 +13,8 @@ from llm_deepseek import stream_chat
 from sherpa_asr import start_streaming_asr
 from text_normalize import normalize_for_zh_tts
 
-TTS_ENGINE = os.environ.get("TTS_ENGINE", "piper").strip().lower()
+# Default TTS engine: MeloTTS (supports Chinese; CPU-friendly).
+TTS_ENGINE = os.environ.get("TTS_ENGINE", "melo").strip().lower()
 if TTS_ENGINE == "cosyvoice":
     from tts_cosyvoice import create_tts, synthesize_to_wav_with_duration
 elif TTS_ENGINE == "openvoice":
@@ -22,10 +23,10 @@ elif TTS_ENGINE == "matcha":
     from tts_matcha import create_tts, synthesize_to_wav_with_duration
 elif TTS_ENGINE == "melo":
     from tts_melo import create_tts, synthesize_to_wav_with_duration
-elif TTS_ENGINE in ("piper_native", "piper-official", "piper_cli"):
-    from tts_piper_native import create_tts, synthesize_to_wav_with_duration
 else:
-    from tts_piper import create_tts, synthesize_to_wav_with_duration
+    raise SystemExit(
+        f"不支持的 TTS_ENGINE={TTS_ENGINE!r}。可选：melo / cosyvoice / openvoice / matcha"
+    )
 
 
 def init_tts_from_env():
@@ -33,18 +34,13 @@ def init_tts_from_env():
 
     This avoids re-loading large models (e.g. CosyVoice) after every wakeword.
     """
-    if TTS_ENGINE == "cosyvoice":
-        tts = create_tts()
-    elif TTS_ENGINE == "openvoice":
-        tts = create_tts()
-    elif TTS_ENGINE == "matcha":
+    if TTS_ENGINE in ("cosyvoice", "openvoice", "matcha"):
         tts = create_tts()
     elif TTS_ENGINE == "melo":
         tts = create_tts(provider="cpu")
-    elif TTS_ENGINE in ("piper_native", "piper-official", "piper_cli"):
-        tts = create_tts()
     else:
-        tts = create_tts(provider="cpu")
+        # Should be unreachable due to import-time guard above.
+        tts = create_tts()
 
     # Warm-up: reduce first synthesis latency.
     try:
@@ -218,18 +214,13 @@ def run_voice_chat_session(
     if tts_instance is not None:
         tts = tts_instance
     else:
-        if TTS_ENGINE == "cosyvoice":
-            tts = create_tts()
-        elif TTS_ENGINE == "openvoice":
-            tts = create_tts()
-        elif TTS_ENGINE == "matcha":
+        if TTS_ENGINE in ("cosyvoice", "openvoice", "matcha"):
             tts = create_tts()
         elif TTS_ENGINE == "melo":
             tts = create_tts(provider="cpu")
-        elif TTS_ENGINE in ("piper_native", "piper-official", "piper_cli"):
-            tts = create_tts()
         else:
-            tts = create_tts(provider="cpu")
+            # Should be unreachable due to import-time guard above.
+            tts = create_tts()
 
     # Some third-party libs call logging.basicConfig() during import and reset the
     # level/handlers. Re-apply our console log policy after TTS init.

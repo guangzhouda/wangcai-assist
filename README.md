@@ -7,11 +7,10 @@
 - ASR（实时中英混合）：sherpa-onnx streaming zipformer
 - LLM（对话）：DeepSeek（OpenAI 兼容 Chat Completions，支持 SSE 流式输出）
 - TTS（语音合成）：
-  - Piper VITS（通过 sherpa_onnx OfflineTts）
-  - Piper 官方运行时（`piper.exe`，支持 `phoneme_type=pinyin` 的中文音色，如 xiao_ya/chaowen）
-  - MeloTTS（sherpa-onnx VITS onnx，支持中文/中英混合，CPU 友好）
+  - MeloTTS（默认；sherpa-onnx VITS onnx；支持中文/中英混合；CPU 友好）
+  - CosyVoice2（本地模型；零样本固定音色）
+  - OpenVoice V2（转音色：把底座 TTS 的音色转换成目标音色）
   - Matcha-TTS（预训练英文模型：Matcha + HiFiGAN，低显存/CPU 也可跑）
-  - CosyVoice2（本地模型，固定音色零样本）
 
 重要：本仓库 **不会提交任何模型文件/大文件/密钥**。模型请按 README 指引自行下载到本地 `model/`。
 
@@ -23,8 +22,9 @@
 - `llm_deepseek.py`：DeepSeek OpenAI 兼容客户端（`stream_chat()` / `chat()`）
 - `voice_chat.py`：ASR final -> LLM stream -> **增量 TTS**（支持并行“合成/播放”流水线，降低卡顿）
 - `main.py`：完整链路入口（KWS 唤醒 -> VAD/ASR -> LLM -> 增量 TTS，支持“休眠/退出”回到待机）
-- `tts_piper.py` / `tts_cosyvoice.py`：两套 TTS 封装（同一接口思路，便于替换）
-- `tts_openvoice.py`：OpenVoice V2 TTS（Piper 生成底座语音 + OpenVoice 转音色）
+- `tts_melo.py` / `download_melo_model.py`：MeloTTS（中文/中英混合；默认 TTS）
+- `tts_cosyvoice.py`：CosyVoice2 TTS（固定音色）
+- `tts_openvoice.py`：OpenVoice V2 TTS（Melo 生成底座语音 + OpenVoice 转音色）
 - `tts_compare.py`：一键对比不同 TTS 的生成耗时/RTF（输出到 `output/tts_compare/`）
 
 ## 后续计划（暂定）
@@ -45,7 +45,7 @@
 - `silero_vad.py`：VAD
 - `sherpa_asr.py`：实时 ASR（中英混合）
 - `llm_deepseek.py`：DeepSeek 客户端
-- `tts_piper.py`：Piper VITS TTS
+- `tts_melo.py`：MeloTTS（默认）
 - `tts_cosyvoice.py`：CosyVoice2 TTS（固定音色）
 - `voice_chat.py`：主入口：实时语音聊天
 
@@ -61,18 +61,10 @@ DeepSeek：
 
 TTS 选择：
 
-- `TTS_ENGINE=piper`（默认，sherpa-onnx Piper）
-- `TTS_ENGINE=piper_native`（官方 `piper.exe`，适合 `phoneme_type=pinyin` 的音色）
-- `TTS_ENGINE=melo`（MeloTTS onnx：更适合中文/中英混合，CPU 也能跑）
+- `TTS_ENGINE=melo`（默认；更适合中文/中英混合，CPU 也能跑）
 - `TTS_ENGINE=matcha`（Matcha-TTS 预训练英文模型，会自动下载 ckpt + vocoder）
 - `TTS_ENGINE=cosyvoice`
 - `TTS_ENGINE=openvoice`
-
-Piper 官方运行时（当 `TTS_ENGINE=piper_native` 时需要）：
-
-- `PIPER_BIN`：`piper.exe` 路径（或把它放到 `third_party/piper/piper.exe`）
-- `PIPER_NATIVE_MODEL_DIR`：音色目录（包含 `*.onnx` 和通常的 `*.onnx.json`）
-- `PIPER_NATIVE_ONNX`：可选；当目录里有多个 `*.onnx` 时指定具体文件
 
 CosyVoice（固定音色，必填）：
 
@@ -85,8 +77,7 @@ CosyVoice（固定音色，必填）：
 
 - `model/silero_vad/silero_vad.onnx`
 - `model/sherpa-onnx-streaming-zipformer-small-bilingual-zh-en-2023-02-16/`（encoder/decoder/joiner/tokens 等）
-- `model/vits-piper-zh_CN-huayan-medium/`（onnx + tokens + espeak-ng-data）
-- `model/piper_zh_xiao_ya/`（示例：官方 piper 运行时音色目录，含 `*.onnx` + `*.onnx.json`）
+- `model/vits-melo-tts-zh_en/`（model.onnx / lexicon / tokens / dict 等）
 - `model/CosyVoice2-0.5B/`（CosyVoice2 模型目录）
 - `model/openvoice_v2/checkpoints_v2/`（OpenVoiceV2 checkpoints：converter 等）
 
@@ -133,7 +124,7 @@ python .\main.py
 
 OpenVoice V2：
 
-推荐（Windows 省事版）：OpenVoice 只负责“转音色”，底座 TTS 直接用本项目的 Piper（不需要安装 MeloTTS，也不需要 faster-whisper/av）。
+推荐：OpenVoice 只负责“转音色”，底座 TTS 使用本项目的 MeloTTS。
 
 依赖安装：
 
@@ -152,24 +143,20 @@ pip install huggingface-hub
 hf download myshell-ai/OpenVoiceV2 --local-dir .\model\openvoice_v2\checkpoints_v2
 ```
 
+底座 TTS（MeloTTS）模型下载（OpenVoice 需要它来先合成“源音色”再转音色）：
+
+```powershell
+python .\download_melo_model.py
+```
+
 启动：
 
 ```powershell
 $env:TTS_ENGINE="openvoice"
 $env:OPENVOICE_REF_WAV="E:\path\to\ref.wav"
-# 推荐：底座用 piper（默认就是 piper）
-$env:OPENVOICE_BASE_ENGINE="piper"
+# 推荐：底座用 melo（默认就是 melo）
+$env:OPENVOICE_BASE_ENGINE="melo"
 # 可选：$env:OPENVOICE_DEVICE="auto"  # 或 cuda / cpu
-# 可选：$env:OPENVOICE_PIPER_PROVIDER="cpu"  # 或 cuda（需要 sherpa-onnx 支持 GPU provider）
-python .\main.py
-```
-
-Piper 官方运行时（piper_native）：
-
-```powershell
-$env:TTS_ENGINE="piper_native"
-$env:PIPER_BIN="E:\\path\\to\\piper.exe"  # 或放到 .\\third_party\\piper\\piper.exe
-$env:PIPER_NATIVE_MODEL_DIR="E:\\Projects\\wangcai-assist\\model\\piper_zh_xiao_ya"
 python .\main.py
 ```
 
@@ -190,11 +177,11 @@ python .\main.py
 
 Matcha-TTS（英文预训练模型）：
 
-注意：Matcha-TTS 这套预训练 checkpoint 是英文（LJSpeech / VCTK），中文输入不一定自然；如果你只是想要更像真人的中文 TTS，建议优先用 Piper(pinyin 音色) / CosyVoice / OpenVoice。
+注意：Matcha-TTS 这套预训练 checkpoint 是英文（LJSpeech / VCTK），中文输入不一定自然；如果你只是想要更像真人的中文 TTS，建议优先用 Melo / CosyVoice / OpenVoice。
 
 ```powershell
 $env:TTS_ENGINE="matcha"
-# Windows phonemizer 需要 espeak-ng；如果你已下载 Piper runtime，本项目会自动复用 third_party\\piper\\piper\\espeak-ng.dll
+# Windows phonemizer 需要 espeak-ng；请自行准备 espeak-ng 的 dll 与 data 目录（或安装到系统环境）。
 # 也可以手动指定：
 # $env:PHONEMIZER_ESPEAK_LIBRARY="E:\\Projects\\wangcai-assist\\third_party\\piper\\piper\\espeak-ng.dll"
 # $env:ESPEAK_DATA_PATH="E:\\Projects\\wangcai-assist\\third_party\\piper\\piper\\espeak-ng-data"

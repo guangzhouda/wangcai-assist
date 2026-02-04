@@ -67,7 +67,6 @@ def _create_process(
     openvoice_ref_wav: str = "",
     openvoice_device: str = "",
     openvoice_base_engine: str = "",
-    openvoice_piper_provider: str = "",
 ) -> subprocess.Popen:
     env = os.environ.copy()
     if picovoice_key.strip():
@@ -85,7 +84,7 @@ def _create_process(
 
     env["KWS_SENSITIVITY"] = str(kws_sensitivity)
     env["ASR_PROVIDER"] = (asr_provider or "cuda").strip()
-    env["TTS_ENGINE"] = (tts_engine or "piper").strip()
+    env["TTS_ENGINE"] = (tts_engine or "melo").strip()
 
     if cosyvoice_prompt_wav.strip():
         env["COSYVOICE_PROMPT_WAV"] = cosyvoice_prompt_wav.strip()
@@ -100,8 +99,6 @@ def _create_process(
         env["OPENVOICE_DEVICE"] = openvoice_device.strip()
     if openvoice_base_engine.strip():
         env["OPENVOICE_BASE_ENGINE"] = openvoice_base_engine.strip()
-    if openvoice_piper_provider.strip():
-        env["OPENVOICE_PIPER_PROVIDER"] = openvoice_piper_provider.strip()
 
     cmd = [python_exe, str(PROJECT_DIR / "main.py")]
 
@@ -203,7 +200,7 @@ def main() -> None:
     spk_var = tk.StringVar(value=output_choices[0])
     kws_sens_var = tk.DoubleVar(value=float(os.environ.get("KWS_SENSITIVITY", "0.5") or "0.5"))
     asr_provider_var = tk.StringVar(value=os.environ.get("ASR_PROVIDER", "cuda"))
-    tts_engine_var = tk.StringVar(value=os.environ.get("TTS_ENGINE", "piper"))
+    tts_engine_var = tk.StringVar(value=os.environ.get("TTS_ENGINE", "melo"))
 
     openvoice_ckpt_var = tk.StringVar(
         value=os.environ.get(
@@ -213,8 +210,7 @@ def main() -> None:
     )
     openvoice_ref_var = tk.StringVar(value=os.environ.get("OPENVOICE_REF_WAV", ""))
     openvoice_device_var = tk.StringVar(value=os.environ.get("OPENVOICE_DEVICE", "auto"))
-    openvoice_base_var = tk.StringVar(value=os.environ.get("OPENVOICE_BASE_ENGINE", "piper"))
-    openvoice_piper_provider_var = tk.StringVar(value=os.environ.get("OPENVOICE_PIPER_PROVIDER", "cpu"))
+    openvoice_base_var = tk.StringVar(value=os.environ.get("OPENVOICE_BASE_ENGINE", "melo"))
 
     # CosyVoice (optional)
     default_ref_wav = str(PROJECT_DIR / "myvoice.wav") if (PROJECT_DIR / "myvoice.wav").exists() else ""
@@ -253,7 +249,7 @@ def main() -> None:
         ttk.Combobox(
             top,
             textvariable=tts_engine_var,
-            values=["piper", "piper_native", "melo", "matcha", "cosyvoice", "openvoice"],
+            values=["melo", "matcha", "cosyvoice", "openvoice"],
             state="readonly",
         ),
     )
@@ -270,8 +266,7 @@ def main() -> None:
     ov_row(0, "CKPT_DIR", ttk.Entry(ov, textvariable=openvoice_ckpt_var))
     ov_row(1, "REF_WAV", ttk.Entry(ov, textvariable=openvoice_ref_var))
     ov_row(2, "DEVICE", ttk.Combobox(ov, textvariable=openvoice_device_var, values=["auto", "cuda", "cpu"], state="readonly"))
-    ov_row(3, "BASE", ttk.Combobox(ov, textvariable=openvoice_base_var, values=["piper"], state="readonly"))
-    ov_row(4, "PIPER_PROVIDER", ttk.Combobox(ov, textvariable=openvoice_piper_provider_var, values=["cpu", "cuda"], state="readonly"))
+    ov_row(3, "BASE", ttk.Combobox(ov, textvariable=openvoice_base_var, values=["melo"], state="readonly"))
 
     cosy = ttk.LabelFrame(top, text="CosyVoice (仅当 TTS_ENGINE=cosyvoice)", padding=8)
     cosy.grid(row=8, column=2, sticky="nsew", padx=(12, 0), pady=(10, 0))
@@ -325,14 +320,13 @@ def main() -> None:
             output_device_index=_parse_choice_to_index(spk_var.get()),
             kws_sensitivity=float(kws_sens_var.get()),
             asr_provider=(asr_provider_var.get() or "cuda").strip(),
-            tts_engine=(tts_engine_var.get() or "piper").strip(),
+            tts_engine=(tts_engine_var.get() or "melo").strip(),
             cosyvoice_prompt_wav=cosy_prompt_wav_var.get(),
             cosyvoice_prompt_text=cosy_prompt_text_var.get(),
             openvoice_ckpt_dir=openvoice_ckpt_var.get(),
             openvoice_ref_wav=openvoice_ref_var.get(),
             openvoice_device=openvoice_device_var.get(),
             openvoice_base_engine=openvoice_base_var.get(),
-            openvoice_piper_provider=openvoice_piper_provider_var.get(),
         )
         state.proc = proc
         _set_status("Running")
