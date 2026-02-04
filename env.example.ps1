@@ -19,7 +19,7 @@ $ErrorActionPreference = "Stop"
 # $env:NO_PROXY    = "127.0.0.1,localhost"
 
 # --- Engine selection ---
-# piper (sherpa-onnx OfflineTts) | piper_native (official piper.exe) | matcha | cosyvoice | openvoice
+# piper (sherpa-onnx OfflineTts) | piper_native (official piper.exe) | melo | matcha | cosyvoice | openvoice
 $env:TTS_ENGINE = "piper"
 
 # --- Piper (official runtime) ---
@@ -53,6 +53,14 @@ $env:TTS_ENGINE = "piper"
 # 也可以手动指定：
 # $env:PHONEMIZER_ESPEAK_LIBRARY = "E:\\Projects\\wangcai-assist\\third_party\\piper\\piper\\espeak-ng.dll"
 # $env:ESPEAK_DATA_PATH = "E:\\Projects\\wangcai-assist\\third_party\\piper\\piper\\espeak-ng-data"
+
+# --- MeloTTS (sherpa-onnx VITS, zh_en) ---
+# $env:TTS_ENGINE = "melo"
+# $env:MELO_MODEL_DIR = "E:\\Projects\\wangcai-assist\\model\\vits-melo-tts-zh_en"
+# 默认优先使用 model.int8.onnx（更省资源/更快）：
+# $env:MELO_PREFER_INT8 = "1"   # 0 关闭
+# 可选：指定具体 onnx
+# $env:MELO_ONNX = "E:\\Projects\\wangcai-assist\\model\\vits-melo-tts-zh_en\\model.int8.onnx"
 
 # --- Audio device selection ---
 # -1 means default device.

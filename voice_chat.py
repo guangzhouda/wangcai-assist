@@ -19,6 +19,8 @@ elif TTS_ENGINE == "openvoice":
     from tts_openvoice import create_tts, synthesize_to_wav_with_duration
 elif TTS_ENGINE == "matcha":
     from tts_matcha import create_tts, synthesize_to_wav_with_duration
+elif TTS_ENGINE == "melo":
+    from tts_melo import create_tts, synthesize_to_wav_with_duration
 elif TTS_ENGINE in ("piper_native", "piper-official", "piper_cli"):
     from tts_piper_native import create_tts, synthesize_to_wav_with_duration
 else:
@@ -36,6 +38,8 @@ def init_tts_from_env():
         tts = create_tts()
     elif TTS_ENGINE == "matcha":
         tts = create_tts()
+    elif TTS_ENGINE == "melo":
+        tts = create_tts(provider="cpu")
     elif TTS_ENGINE in ("piper_native", "piper-official", "piper_cli"):
         tts = create_tts()
     else:
@@ -219,6 +223,8 @@ def run_voice_chat_session(
             tts = create_tts()
         elif TTS_ENGINE == "matcha":
             tts = create_tts()
+        elif TTS_ENGINE == "melo":
+            tts = create_tts(provider="cpu")
         elif TTS_ENGINE in ("piper_native", "piper-official", "piper_cli"):
             tts = create_tts()
         else:

@@ -9,6 +9,7 @@
 - TTS（语音合成）：
   - Piper VITS（通过 sherpa_onnx OfflineTts）
   - Piper 官方运行时（`piper.exe`，支持 `phoneme_type=pinyin` 的中文音色，如 xiao_ya/chaowen）
+  - MeloTTS（sherpa-onnx VITS onnx，支持中文/中英混合，CPU 友好）
   - Matcha-TTS（预训练英文模型：Matcha + HiFiGAN，低显存/CPU 也可跑）
   - CosyVoice2（本地模型，固定音色零样本）
 
@@ -62,6 +63,7 @@ TTS 选择：
 
 - `TTS_ENGINE=piper`（默认，sherpa-onnx Piper）
 - `TTS_ENGINE=piper_native`（官方 `piper.exe`，适合 `phoneme_type=pinyin` 的音色）
+- `TTS_ENGINE=melo`（MeloTTS onnx：更适合中文/中英混合，CPU 也能跑）
 - `TTS_ENGINE=matcha`（Matcha-TTS 预训练英文模型，会自动下载 ckpt + vocoder）
 - `TTS_ENGINE=cosyvoice`
 - `TTS_ENGINE=openvoice`
@@ -168,6 +170,21 @@ Piper 官方运行时（piper_native）：
 $env:TTS_ENGINE="piper_native"
 $env:PIPER_BIN="E:\\path\\to\\piper.exe"  # 或放到 .\\third_party\\piper\\piper.exe
 $env:PIPER_NATIVE_MODEL_DIR="E:\\Projects\\wangcai-assist\\model\\piper_zh_xiao_ya"
+python .\main.py
+```
+
+MeloTTS（推荐：中文/中英混合，CPU 友好）：
+
+先下载模型（约 167MB，会解压到 `model/vits-melo-tts-zh_en/`，已 gitignore）：
+
+```powershell
+python .\download_melo_model.py
+```
+
+启动：
+
+```powershell
+$env:TTS_ENGINE="melo"
 python .\main.py
 ```
 

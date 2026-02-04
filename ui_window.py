@@ -253,7 +253,7 @@ def main() -> None:
         ttk.Combobox(
             top,
             textvariable=tts_engine_var,
-            values=["piper", "piper_native", "matcha", "cosyvoice", "openvoice"],
+            values=["piper", "piper_native", "melo", "matcha", "cosyvoice", "openvoice"],
             state="readonly",
         ),
     )
