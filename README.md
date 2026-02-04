@@ -181,10 +181,10 @@ Matcha-TTS（英文预训练模型）：
 
 ```powershell
 $env:TTS_ENGINE="matcha"
-# Windows phonemizer 需要 espeak-ng；请自行准备 espeak-ng 的 dll 与 data 目录（或安装到系统环境）。
-# 也可以手动指定：
-# $env:PHONEMIZER_ESPEAK_LIBRARY="E:\\Projects\\wangcai-assist\\third_party\\piper\\piper\\espeak-ng.dll"
-# $env:ESPEAK_DATA_PATH="E:\\Projects\\wangcai-assist\\third_party\\piper\\piper\\espeak-ng-data"
+# Windows phonemizer 需要 espeak-ng；请自行安装 espeak-ng（或准备 espeak-ng.dll + espeak-ng-data）。
+# 如果 phonemizer 找不到 espeak-ng，可手动指定：
+# $env:PHONEMIZER_ESPEAK_LIBRARY="C:\\path\\to\\espeak-ng.dll"
+# $env:ESPEAK_DATA_PATH="C:\\path\\to\\espeak-ng-data"
 python .\main.py
 ```
 

@@ -6,9 +6,8 @@ from typing import Optional, Tuple
 
 
 # NOTE:
-# Matcha-TTS uses `phonemizer` (espeak backend) for english_cleaners2.
-# On Windows, you must provide an espeak-ng shared library (dll) + data dir.
-# If you already have Piper runtime downloaded, we can reuse its espeak-ng files.
+# Matcha-TTS uses `phonemizer` (espeak-ng backend) for english_cleaners2.
+# On Windows, you need to provide an espeak-ng shared library (dll) + data dir.
 
 
 SAMPLE_RATE = 22050
@@ -57,18 +56,21 @@ def _resolve_model_dir() -> Path:
 def _ensure_espeak_env() -> None:
     """Make phonemizer(espeak) available on Windows.
 
-    If user already configured env vars, respect them. Otherwise, try to reuse
-    Piper runtime's bundled espeak-ng dll + data dir.
+    If user already configured env vars, respect them. Otherwise, raise a
+    clear error message so users know how to fix it.
     """
+    if os.name != "nt":
+        return
+
     if os.environ.get("PHONEMIZER_ESPEAK_LIBRARY", "").strip():
         return
 
-    base = Path(__file__).resolve().parent
-    dll = base / "third_party" / "piper" / "piper" / "espeak-ng.dll"
-    data = base / "third_party" / "piper" / "piper" / "espeak-ng-data"
-    if dll.exists() and data.exists():
-        os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = str(dll)
-        os.environ.setdefault("ESPEAK_DATA_PATH", str(data))
+    raise RuntimeError(
+        "Matcha-TTS 需要 phonemizer 的 espeak-ng 后端。\n"
+        "在 Windows 上请先安装/准备 espeak-ng，然后设置环境变量：\n"
+        '  $env:PHONEMIZER_ESPEAK_LIBRARY = "C:\\\\path\\\\to\\\\espeak-ng.dll"\n'
+        '  $env:ESPEAK_DATA_PATH = "C:\\\\path\\\\to\\\\espeak-ng-data"  # 可选但推荐\n'
+    )
 
 
 def _write_wav_int16(wav_path: str, pcm16, sample_rate: int) -> None:
@@ -274,4 +276,3 @@ def synthesize_to_wav_with_duration(
     speed: float = 1.0,
 ) -> tuple[str, float]:
     return tts.synthesize_to_wav(text, wav_path, speed=speed)
-

@@ -43,8 +43,8 @@ $env:TTS_ENGINE = "melo"
 # Windows 需要 espeak-ng（phonemizer 后端）:
 # 你需要提供 espeak-ng 的 dll 与 data 目录（或自行安装到系统环境里）。
 # 可手动指定：
-# $env:PHONEMIZER_ESPEAK_LIBRARY = "E:\\Projects\\wangcai-assist\\third_party\\piper\\piper\\espeak-ng.dll"
-# $env:ESPEAK_DATA_PATH = "E:\\Projects\\wangcai-assist\\third_party\\piper\\piper\\espeak-ng-data"
+# $env:PHONEMIZER_ESPEAK_LIBRARY = "C:\\path\\to\\espeak-ng.dll"
+# $env:ESPEAK_DATA_PATH = "C:\\path\\to\\espeak-ng-data"
 
 # --- MeloTTS (sherpa-onnx VITS, zh_en) ---
 # $env:TTS_ENGINE = "melo"
