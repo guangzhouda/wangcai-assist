@@ -17,6 +17,8 @@ if TTS_ENGINE == "cosyvoice":
     from tts_cosyvoice import create_tts, synthesize_to_wav_with_duration
 elif TTS_ENGINE == "openvoice":
     from tts_openvoice import create_tts, synthesize_to_wav_with_duration
+elif TTS_ENGINE == "matcha":
+    from tts_matcha import create_tts, synthesize_to_wav_with_duration
 elif TTS_ENGINE in ("piper_native", "piper-official", "piper_cli"):
     from tts_piper_native import create_tts, synthesize_to_wav_with_duration
 else:
@@ -31,6 +33,8 @@ def init_tts_from_env():
     if TTS_ENGINE == "cosyvoice":
         tts = create_tts()
     elif TTS_ENGINE == "openvoice":
+        tts = create_tts()
+    elif TTS_ENGINE == "matcha":
         tts = create_tts()
     elif TTS_ENGINE in ("piper_native", "piper-official", "piper_cli"):
         tts = create_tts()
@@ -212,6 +216,8 @@ def run_voice_chat_session(
         if TTS_ENGINE == "cosyvoice":
             tts = create_tts()
         elif TTS_ENGINE == "openvoice":
+            tts = create_tts()
+        elif TTS_ENGINE == "matcha":
             tts = create_tts()
         elif TTS_ENGINE in ("piper_native", "piper-official", "piper_cli"):
             tts = create_tts()

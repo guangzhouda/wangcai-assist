@@ -19,7 +19,7 @@ $ErrorActionPreference = "Stop"
 # $env:NO_PROXY    = "127.0.0.1,localhost"
 
 # --- Engine selection ---
-# piper (sherpa-onnx OfflineTts) | piper_native (official piper.exe) | cosyvoice | openvoice
+# piper (sherpa-onnx OfflineTts) | piper_native (official piper.exe) | matcha | cosyvoice | openvoice
 $env:TTS_ENGINE = "piper"
 
 # --- Piper (official runtime) ---
@@ -35,6 +35,24 @@ $env:TTS_ENGINE = "piper"
 # $env:OPENVOICE_DEVICE = "auto"          # auto | cpu | cuda
 # $env:OPENVOICE_BASE_ENGINE = "piper"    # only piper supported in this repo
 # $env:OPENVOICE_PIPER_PROVIDER = "cpu"   # cpu | cuda (if sherpa-onnx supports it)
+
+# --- Matcha-TTS (pretrained English checkpoints) ---
+# $env:TTS_ENGINE = "matcha"
+# Models (ckpt + vocoder) will be downloaded to MATCHA_MODEL_DIR (default: .\\model\\matcha, gitignored).
+# $env:MATCHA_MODEL_DIR = "E:\\Projects\\wangcai-assist\\model\\matcha"
+# $env:MATCHA_MODEL = "matcha_ljspeech"     # matcha_ljspeech | matcha_vctk
+# $env:MATCHA_DEVICE = "auto"              # auto | cuda | cpu
+# $env:MATCHA_SPEAKER = "0"                # only for matcha_vctk (0~107)
+# $env:MATCHA_STEPS = "10"
+# $env:MATCHA_TEMPERATURE = "0.667"
+# $env:MATCHA_SPEAKING_RATE = "0.95"       # higher => slower (Matcha length_scale)
+# $env:MATCHA_DENOISER_STRENGTH = "0.00025"  # 0 disables denoiser (faster)
+#
+# Windows 需要 espeak-ng（phonemizer 后端）:
+# 如果你已经下载了 Piper runtime（third_party\\piper\\piper\\espeak-ng.dll），本项目会自动复用。
+# 也可以手动指定：
+# $env:PHONEMIZER_ESPEAK_LIBRARY = "E:\\Projects\\wangcai-assist\\third_party\\piper\\piper\\espeak-ng.dll"
+# $env:ESPEAK_DATA_PATH = "E:\\Projects\\wangcai-assist\\third_party\\piper\\piper\\espeak-ng-data"
 
 # --- Audio device selection ---
 # -1 means default device.

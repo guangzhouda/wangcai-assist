@@ -41,6 +41,17 @@ def _run_one(engine: str, text: str) -> None:
         print(f"[openvoice] out={wav_path} dur={dur:.2f}s time={dt:.2f}s rtf={rtf:.3f}")
         return
 
+    if engine == "matcha":
+        from tts_matcha import create_tts, synthesize_to_wav_with_duration
+
+        tts = create_tts()
+        t0 = time.perf_counter()
+        _, dur = synthesize_to_wav_with_duration(tts, text, str(wav_path), speed=1.0)
+        dt = time.perf_counter() - t0
+        rtf = (dt / dur) if dur > 0 else float("inf")
+        print(f"[matcha] out={wav_path} dur={dur:.2f}s time={dt:.2f}s rtf={rtf:.3f}")
+        return
+
     raise ValueError(f"Unknown engine: {engine}")
 
 
@@ -50,7 +61,7 @@ def main() -> None:
     if engines:
         engine_list = [e.strip().lower() for e in engines.split(",") if e.strip()]
     else:
-        engine_list = ["piper", "cosyvoice", "openvoice"]
+        engine_list = ["piper", "matcha", "cosyvoice", "openvoice"]
 
     print(f"Text: {text}")
     print(f"Engines: {engine_list}")
@@ -65,4 +76,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

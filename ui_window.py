@@ -247,7 +247,16 @@ def main() -> None:
     add_row(5, "KWS 灵敏度", ttk.Scale(top, variable=kws_sens_var, from_=0.1, to=0.9, orient="horizontal"))
 
     add_row(6, "ASR Provider", ttk.Combobox(top, textvariable=asr_provider_var, values=["cuda", "cpu"], state="readonly"))
-    add_row(7, "TTS 引擎", ttk.Combobox(top, textvariable=tts_engine_var, values=["piper", "piper_native", "cosyvoice", "openvoice"], state="readonly"))
+    add_row(
+        7,
+        "TTS 引擎",
+        ttk.Combobox(
+            top,
+            textvariable=tts_engine_var,
+            values=["piper", "piper_native", "matcha", "cosyvoice", "openvoice"],
+            state="readonly",
+        ),
+    )
 
     # OpenVoice extras
     ov = ttk.LabelFrame(top, text="OpenVoice (仅当 TTS_ENGINE=openvoice)", padding=8)

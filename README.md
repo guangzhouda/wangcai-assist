@@ -9,6 +9,7 @@
 - TTS（语音合成）：
   - Piper VITS（通过 sherpa_onnx OfflineTts）
   - Piper 官方运行时（`piper.exe`，支持 `phoneme_type=pinyin` 的中文音色，如 xiao_ya/chaowen）
+  - Matcha-TTS（预训练英文模型：Matcha + HiFiGAN，低显存/CPU 也可跑）
   - CosyVoice2（本地模型，固定音色零样本）
 
 重要：本仓库 **不会提交任何模型文件/大文件/密钥**。模型请按 README 指引自行下载到本地 `model/`。
@@ -61,6 +62,7 @@ TTS 选择：
 
 - `TTS_ENGINE=piper`（默认，sherpa-onnx Piper）
 - `TTS_ENGINE=piper_native`（官方 `piper.exe`，适合 `phoneme_type=pinyin` 的音色）
+- `TTS_ENGINE=matcha`（Matcha-TTS 预训练英文模型，会自动下载 ckpt + vocoder）
 - `TTS_ENGINE=cosyvoice`
 - `TTS_ENGINE=openvoice`
 
@@ -166,6 +168,19 @@ Piper 官方运行时（piper_native）：
 $env:TTS_ENGINE="piper_native"
 $env:PIPER_BIN="E:\\path\\to\\piper.exe"  # 或放到 .\\third_party\\piper\\piper.exe
 $env:PIPER_NATIVE_MODEL_DIR="E:\\Projects\\wangcai-assist\\model\\piper_zh_xiao_ya"
+python .\main.py
+```
+
+Matcha-TTS（英文预训练模型）：
+
+注意：Matcha-TTS 这套预训练 checkpoint 是英文（LJSpeech / VCTK），中文输入不一定自然；如果你只是想要更像真人的中文 TTS，建议优先用 Piper(pinyin 音色) / CosyVoice / OpenVoice。
+
+```powershell
+$env:TTS_ENGINE="matcha"
+# Windows phonemizer 需要 espeak-ng；如果你已下载 Piper runtime，本项目会自动复用 third_party\\piper\\piper\\espeak-ng.dll
+# 也可以手动指定：
+# $env:PHONEMIZER_ESPEAK_LIBRARY="E:\\Projects\\wangcai-assist\\third_party\\piper\\piper\\espeak-ng.dll"
+# $env:ESPEAK_DATA_PATH="E:\\Projects\\wangcai-assist\\third_party\\piper\\piper\\espeak-ng-data"
 python .\main.py
 ```
 
