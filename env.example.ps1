@@ -73,3 +73,13 @@ $env:TTS_ENGINE = "piper"
 # --- ASR provider ---
 # cpu | cuda (note: sherpa-onnx may fallback to cpu if GPU is not enabled in your build)
 # $env:ASR_PROVIDER = "cuda"
+
+# --- TTS text normalization (recommended for Chinese TTS) ---
+# Some TTS models (e.g. MeloTTS) may not handle Arabic numerals / markdown well.
+# When enabled, we will:
+# - strip markdown markers
+# - convert Arabic numerals to Chinese spoken forms (1 -> 一, 2026 -> 二零二六, 3.14 -> 三点一四, 50% -> 百分之五十)
+# - optionally strip rare symbols/emojis
+#
+# $env:TTS_TEXT_NORMALIZE = "1"     # 1 enable (default), 0 disable
+# $env:TTS_STRIP_NON_TEXT = "1"     # 1 enable (default), 0 keep all characters

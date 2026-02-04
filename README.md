@@ -205,4 +205,5 @@ python .\main.py
 
 - `.gitignore` 已忽略 `model/`、音频文件、`output/`、`.venv/`、`.cache/`、`.env*` 等，避免提交大文件/敏感信息。
 - 参考音频如果是 `m4a`，建议用 `ffmpeg` 转成 `wav`（24k/mono）再用作 `COSYVOICE_PROMPT_WAV`。
+- 中文 TTS（特别是 MeloTTS）对“阿拉伯数字 / markdown / 生僻符号”可能不友好：本项目默认会做一层播报文本归一化（数字转中文、去 markdown）。可通过 `TTS_TEXT_NORMALIZE=0` 关闭。
 - 这是原型工程，后续会继续模块化与整理依赖/文档。

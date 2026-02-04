@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Tuple
 
 from llm_deepseek import stream_chat
 from sherpa_asr import start_streaming_asr
+from text_normalize import normalize_for_zh_tts
 
 TTS_ENGINE = os.environ.get("TTS_ENGINE", "piper").strip().lower()
 if TTS_ENGINE == "cosyvoice":
@@ -265,8 +266,20 @@ def run_voice_chat_session(
         except Exception:
             think_ack_wav = None
 
+    # System prompt tuned for "spoken" output (TTS-friendly).
+    # We keep it short but add constraints that avoid messy symbols/markdown.
     messages: List[Dict[str, str]] = [
-        {"role": "system", "content": "你是一个中文语音助手，回答要简洁、自然。"},
+        {
+            "role": "system",
+            "content": (
+                "你是一个中文语音助手，用口语化、简洁、自然的中文回答。\n"
+                "为了让语音播报更顺畅，请遵守：\n"
+                "1) 尽量不要输出 Markdown/代码块/链接/表情符号。\n"
+                "2) 尽量使用中文数字表达（例如：二零二六年、五十、百分之二十），避免阿拉伯数字。\n"
+                "3) 避免生僻符号和花哨格式；需要分点时用“第一、第二…”或短句。\n"
+                "4) 如果信息不确定，先澄清再回答，不要编造。"
+            ),
+        },
     ]
 
     def _normalize_cmd(s: str) -> str:
@@ -285,6 +298,17 @@ def run_voice_chat_session(
 
     exit_phrases = _parse_exit_phrases(os.environ.get("VOICE_EXIT_PHRASES", "休眠,退出,结束,停止,再见,拜拜"))
     exit_ack = os.environ.get("VOICE_EXIT_ACK", "好的，我回到待机模式。")
+
+    def _tts_text_normalize_enabled() -> bool:
+        v = os.environ.get("TTS_TEXT_NORMALIZE", "1").strip().lower()
+        if v in ("0", "false", "no"):
+            return False
+        # Matcha is an English TTS; don't force Chinese number normalization.
+        if TTS_ENGINE == "matcha":
+            return False
+        return True
+
+    tts_text_normalize = _tts_text_normalize_enabled()
 
     def split_ready_tts_chunks(
         buf: str,
@@ -589,7 +613,11 @@ def run_voice_chat_session(
                     allow_soft_cut=allow_soft,
                 )
                 for part in ready:
-                    text_q.put(part)
+                    part_tts = part.strip()
+                    if tts_text_normalize and part_tts:
+                        part_tts = normalize_for_zh_tts(part_tts)
+                    if part_tts:
+                        text_q.put(part_tts)
                     started_speaking = True
                     enqueued_chunks += 1
 
@@ -601,7 +629,11 @@ def run_voice_chat_session(
                     forced = force_first_chunk(buf)
                     if forced is not None:
                         part, buf = forced
-                        text_q.put(part)
+                        part_tts = part.strip()
+                        if tts_text_normalize and part_tts:
+                            part_tts = normalize_for_zh_tts(part_tts)
+                        if part_tts:
+                            text_q.put(part_tts)
                         started_speaking = True
                         enqueued_chunks += 1
         except Exception as exc:
@@ -614,7 +646,11 @@ def run_voice_chat_session(
 
         rest = buf.strip()
         if rest:
-            text_q.put(rest)
+            rest_tts = rest
+            if tts_text_normalize:
+                rest_tts = normalize_for_zh_tts(rest_tts)
+            if rest_tts:
+                text_q.put(rest_tts)
 
         # Signal end and wait for all chunks to be synthesized and spoken.
         text_q.put(None)
