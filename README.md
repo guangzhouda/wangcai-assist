@@ -48,6 +48,7 @@
 - `tts_melo.py`：MeloTTS（默认）
 - `tts_cosyvoice.py`：CosyVoice2 TTS（固定音色）
 - `voice_chat.py`：主入口：实时语音聊天
+- `docs/podcast_workflow.md`：播客/长内容配音建议（CosyVoice/OpenVoice 组合思路）
 
 ## 运行（最小化指引）
 
